@@ -1,0 +1,23 @@
+{
+  "name": "react-rekanva",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/JS-Hao/react-rekanva.git"
+  },
+  "author": "JS-Hao",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/JS-Hao/react-rekanva/issues"
+  },
+  "homepage": "https://github.com/JS-Hao/react-rekanva#readme",
+  "devDependencies": {
+    "rekapi": "^2.0.2",
+    "webpack": "^3.5.6"
+  }
+}
