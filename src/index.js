@@ -11,20 +11,29 @@ export class Rekanva {
 	constructor(options) {
 		const { target, easing = 'linear', duration = 1000, ...props } = options;
 		this.target = target;
-		this.attrs = target.attrs;
+		this.attrs = Object.assign({}, target.attrs);
 		this.easing = easing;
 		this.duration = duration;
 		this.animOpt = props;
 		this.rekapi = new Rekapi(document.createElement('canvas').getContext('2d'));
+		this.pathTimeline = null;
+
+		if (this.animOpt.path) {
+			const { path, ...others } = this.animOpt;
+			this.animOpt = others;
+			this.pathTimeline = path(this.duration, this.attrs.x, this.attrs.y);
+		}
+
 		this.converter = this._toConvert(this.animOpt);
 
 		this.actor = new Actor({
 			render: (context, state) => {
-				this._render(this.target, state);
+				this._render(this.target, state, this.attrs);
 			}
 		});
 
 		this.actor.importTimeline(this._addTimeline(this.converter));
+		this.pathTimeline && this.actor.importTimeline(this.pathTimeline);
 		this.rekapi.addActor(this.actor);
 		this.queue = [ this.rekapi ];
 
@@ -81,9 +90,10 @@ export class Rekanva {
 		}
 	}
 
-	_render(target, state) {
+	_render(target, state, attrs) {
 		for (let key in state) {
-			target.to({[key]: state[key], duration: -1});
+			target.to({[key]: (state[key] + attrs[key]), duration: -1});
+			console.log(attrs[key])
 		}
 	}
 
@@ -203,6 +213,30 @@ export class Rekanva {
 
 	to(options) {
 		const { target = this.target, duration = this.duration, easing = this.easing, ...props } = options;
-		
+
+	}
+}
+
+export function Path(path) {
+	const pathElement = document.createElementNS('http://www.w3.org/2000/svg',"path"); 
+	pathElement.setAttributeNS(null, 'd', path);
+	console.log(pathElement.getPointAtLength(0));
+
+	return function(duration, attrX, attrY) {
+		const length = parseInt(pathElement.getTotalLength());
+		const interval = duration / length;
+		let time = 0, step = 0, lastX = 0, lastY = 0;
+		const actor = new Actor();
+		for (let time = 0; time <= duration; time += interval) {
+			const x = parseInt(pathElement.getPointAtLength(step).x);
+			const y = parseInt(pathElement.getPointAtLength(step).y);
+			if (x !== lastX || y !== lastY) {
+				actor.keyframe(time, { x, y });
+				lastX = x;
+				lastY = y;
+			}
+			step++;	
+		}
+		return actor.exportTimeline();
 	}
 }
