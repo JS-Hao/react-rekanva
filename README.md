@@ -13,7 +13,7 @@ var rekanva = new Rekanva({
   easing: 'easeOutExpo'
 });
 
-rekanva.play();
+rekanva.play(); //执行动画
 ```
 
 ### **动画合并**
@@ -63,20 +63,35 @@ var rekanva = new Rekanva({
 ```javascript
 import { Rekanva, Path } from './react-rekanva';
 
-const path = Path('M0,0 C8,33.90861 25.90861,16 48,16 C70.09139,16 88,33.90861 88,56 C88,78.09139 105.90861,92 128,92 C150.09139,92 160,72 160,56 C160,40 148,24 128,24 C108,24 96,40 96,56 C96,72 105.90861,92 128,92 C154,93 168,78 168,56 C168,33.90861 185.90861,16 208,16 C230.09139,16 248,33.90861 248,56 C248,78.09139 230.09139,96 208,96 L48,96 C25.90861,96 8,78.09139 8,56 Z');
-const rekanva = new Rekanva({
+var path = Path('M0,0 C8,33.90861 25.90861,16 48,16 C70.09139,16 88,33.90861 88,56 C88,78.09139 105.90861,92 128,92 C150.09139,92 160,72 160,56 C160,40 148,24 128,24 C108,24 96,40 96,56 C96,72 105.90861,92 128,92 C154,93 168,78 168,56 C168,33.90861 185.90861,16 208,16 C230.09139,16 248,33.90861 248,56 C248,78.09139 230.09139,96 208,96 L48,96 C25.90861,96 8,78.09139 8,56 Z');
+var rekanva = new Rekanva({
   target: target,
   path: path,
   duration: 3000
 });
 ```
+### 事件
 
+react-rekanva支持```onPlay```, ```onPause```, ```onStop```以及```onEnd```事件，你只需要将这些事件函数传入动画配置即可：
 
+```javascript
+var rekanva = new Rekanva({
+  target: konvaNode,
+  translateX: 200,
+  duration: 2000,
+  easing: 'easeOutExpo',
+  onPlay: function() {
+    console.log('the animation is playing!');
+  }
+  onEnd: function() {
+    console.log('the animation is end!');
+  }
+});
+```
 
+除此之外，react-rekanva还允许你手动触发以下事件：
 
-
-
-
-
-
-
+* ```play```          动画开始执行；
+* ```stop```          暂停当前的动画（不会影响通过```to```方法添加的后续动画的执行）；
+* ```stopAll```    暂停所有的动画（通过```to```方法添加的后续动画也将全部停止）;
+* ```endAll```      结束所有的动画（通过```to```方法添加的后续动画也将全部结束）;
