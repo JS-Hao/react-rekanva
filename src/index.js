@@ -1,17 +1,19 @@
 import { Rekapi, Actor } from 'rekapi';
 
 const _converter = {
-	'translateX': 'x',
-	'translateY': 'y',
-	'scale': ['scaleX', 'scaleY'],
-	'scaleX': 'scaleX',
-	'scaleY': 'scaleY'
-
+	'translateX':  'x',
+	'translateY':  'y',
+	'scale'     :  ['scaleX', 'scaleY'],
+	'scaleX'    :  'scaleX',
+	'scaleY'    :  'scaleY',
+	'opacity'   :  'opacity',
+	'width'     :  'width',
+	'height'    :  'height'
 }
 
 export class Rekanva {
 	constructor(options) {
-		const { target, easing = 'linear', duration = 1000, ...props } = options;
+		const { target, easing = 'linear', duration = 1000, onStop, onPlay, onPause, onEnd, ...props } = options;
 		this.id = this._getHash();
 		this.target = target;
 		this.attrs = Object.assign({}, target.attrs);
@@ -20,6 +22,10 @@ export class Rekanva {
 		this.animOpt = props;
 		this.rekapi = new Rekapi(document.createElement('canvas').getContext('2d'));
 		this.pathTimeline = null;
+		this.onStop = onStop;
+		this.onPlay = onPlay;
+		this.onPause = onPause;
+		this.onEnd = onEnd;
 
 		if (this.animOpt.path) {
 			const { path, ...others } = this.animOpt;
@@ -39,8 +45,13 @@ export class Rekanva {
 		this.actor.importTimeline(this._addTimeline(this.converter));
 		this.pathTimeline && this.actor.importTimeline(this.pathTimeline);
 		this.rekapi.addActor(this.actor);
-		this.queue = [ [ this.rekapi ] ];
+		this.queue = [ [ this ] ];
 
+		// 事件监听
+		this._isFunction(this.onStop) && this.rekapi.on('stop', this.onStop.bind(this));
+		this._isFunction(this.onPlay) && this.rekapi.on('play', this.onPlay.bind(this));
+		this._isFunction(this.onPause) && this.rekapi.on('pause', this.onPlay.bind(this));
+		this._isFunction(this.onEnd) && this.rekapi.on('animationComplete', this.onEnd.bind(this));
 	}
 
 	_getHash() {
@@ -53,6 +64,10 @@ export class Rekanva {
 			.keyframe(0, this._getState('start', converter, isAnother))
 			.keyframe(this.duration, this._getState('end', converter, isAnother));
 		return actor.exportTimeline();
+	}
+
+	_isFunction(func) {
+		return func && (typeof func === 'function');
 	}
 
 	_toConvert(animOpt) {
@@ -114,20 +129,102 @@ export class Rekanva {
 		}
 	}
 
+	init() {
+		this.target.to(Object.assign({}, this.attrs, { duration: -1 }));
+	}
+
 	play() {
 		const reverse = this.queue.concat().reverse();
 		reverse.map((item, key) => {
 			if (reverse[key + 1]) {
-				reverse[key + 1][0].on('stop', () => {
-					reverse[key].map(rekapi => rekapi.play(1));
+				reverse[key + 1][0].rekapi.on('stop', () => {
+					reverse[key].map(rekanva => rekanva.rekapi.play(1));
 				})
 			}
 		});
-		this.queue[0].map(rekapi => rekapi.play(1));
+		this.queue[0].map(rekanva => rekanva.rekapi.play(1));
 	}
 
 	stop() {
+		this.queue.map((item) => {
+			item.map(rekanva => (rekanva.rekapi.isPlaying && rekanva.rekapi.stop()));
+		});
+	}
 
+
+	stopAll() {
+		this.queue.map((item, key1) => {
+			item.map((rekanva, key2) => {
+				const rekapi = rekanva.rekapi;
+				if (rekapi.isPlaying()) {
+					if (key2 === 0) {
+						// 解除所有stop事件的绑定
+						rekapi.off('stop');
+						rekapi.stop();
+						// 手动触发onStop事件
+						rekanva.onStop && rekanva.onStop();
+						// 重新绑定
+						rekanva.onStop && rekapi.on('stop', rekanva.onStop);
+						item[key1 + 1] && rekapi.on('stop', () => {
+							item[key1 + 1].map(nextRekanva => nextRekanva.rekapi.play(1));
+						});
+					} else {
+						rekapi.stop();	
+					}
+				}
+			})
+		})
+	}
+
+	endAll() {
+		let index;
+		this.queue.map((item, key1) => {
+			item.map((rekanva, key2) => {
+				const rekapi = rekanva.rekapi;
+				if (rekapi.isPlaying()) {
+					if (key2 === 0) {
+						// 更新当前动画队列的index
+						index = key1 + 1;
+						// 解除所有stop事件的绑定
+						rekapi.off('stop');
+						rekapi.stop();
+						// 重新绑定
+						rekanva.onStop && rekapi.on('stop', rekanva.onStop);
+						item[key1 + 1] && rekapi.on('stop', () => {
+							item[key1 + 1].map(nextRekanva => nextRekanva.rekapi.play(1));
+						});
+						// 更新target到end状态
+						rekanva.target.to(Object.assign({}, this._getEndState(rekanva.attrs, rekanva.converter), { duration: -1 }));
+						// 触发traget的onEnd事件
+						rekanva.onEnd && rekanva.onEnd();
+					}
+				} else if (index !== undefined && key1 >= index) {
+					// 更新target到end状态
+					rekanva.target.to(Object.assign({}, this._getEndState(rekanva.attrs, rekanva.converter), { duration: -1 }));
+					// 触发traget的onEnd事件
+					rekanva.onEnd && rekanva.onEnd();
+				} else {
+					return;
+				}
+			})
+		})
+	}
+
+	_getEndState(attrs, converter) {
+		const state = {};
+		for (let key in converter) {
+			switch (key) {
+				case 'scaleX':
+				case 'scaleY':
+					state[key] = converter[key];
+					break;
+
+				default:
+					state[key] = converter[key] + attrs[key];
+					break;
+			}
+		}
+		return state;
 	}
 
   // 获取两条timeline，当timeline有重复定义的track定义时，将相同的track合并到nextTimeline上，并删除lastTimeline的同名track
@@ -151,45 +248,6 @@ export class Rekanva {
 		});
 		return { lastTimeline, nextTimeline }
 	}
-
-	// _combinePropertyTrack(lastPropertyTrack, nextPropertyTrack) {
-	// 	const lastTrackMs = lastPropertyTrack.map(item => item.millisecond);
-	// 	const nextTrackMs = nextPropertyTrack.map(item => item.millisecond);
-	// 	const sameTrackMs = [], diffTrackMs = [];
-
-	// 	const lastTrackObj = {};
-	// 	lastPropertyTrack.map(item => {
-	// 		lastTrackObj[item.millisecond] = item;
-	// 	});	
-
-	// 	lastTrackMs.map(item => {
-	// 		if (nextTrackMs.indexOf(item) !== -1) {
-	// 			sameTrackMs.push(item);
-	// 		} else {	
-	// 			diffTrackMs.push(item);
-	// 		}
-	// 	});
-	// 	const newPropertyTrack = nextPropertyTrack;
-
-	// 	// 合并相同帧的value
-	// 	newPropertyTrack.map(item => {
-	// 		if (sameTrackMs.indexOf(item.millisecond) !== -1) {
-	// 			// 两个track的value叠加，将会多出一个target.attr
-	// 			item.value = item.value + lastTrackObj[item.millisecond].value
-	// 		}
-	// 	});
-
-	// 	// 增加lastPropertyTrack提供的额外帧
-	// 	diffTrackMs.map(item => {
-	// 		newPropertyTrack.push(lastTrackMs[item]);
-	// 	});
-
-	// 	// 重排序
-	// 	newPropertyTrack.sort((last, next) => {
-	// 		return last.millisecond - next.millisecond;
-	// 	});
-	// 	return newPropertyTrack;
-	// }
 
 	/**
 	 * combine 结合上一个动画
@@ -230,14 +288,14 @@ export class Rekanva {
 			const lastTimeline = this.actor.exportTimeline();
 			const timelines = this._combineTimeline(lastTimeline, nextTimeline);
 			this.actor.removeAllKeyframes();
-			console.log(timelines)
 			this.actor.importTimeline(timelines.lastTimeline);
 			this.actor.importTimeline(timelines.nextTimeline);
 
 			this.rekapi.addActor(this.actor);
+
 		} else {
 			const rekanva = new Rekanva(Object.assign({}, options, { target, duration, easing }));
-			this.queue[this.queue.length - 1].push(rekanva.rekapi);
+			this.queue[this.queue.length - 1].push(rekanva);
 		}
 		return this;
 	}
@@ -245,7 +303,7 @@ export class Rekanva {
 	to(options) {
 		const { target = this.target, duration = this.duration, easing = this.easing, ...props } = options;
 		const rekanva = new Rekanva(Object.assign({}, options, { target, duration, easing }));
-		this.queue.push([ rekanva.rekapi ]);
+		this.queue.push([ rekanva ]);
 		return this;
 
 	}
