@@ -72,7 +72,7 @@ export class Rekanva {
 
 	_toConvert(animOpt) {
 		const converter = {};
-		for (let key in animOpt) {
+		for (const key in animOpt) {
 			if (typeof _converter[key] === 'string') {
 				converter[_converter[key]] = animOpt[key];
 
@@ -87,7 +87,7 @@ export class Rekanva {
 	}
 
 	_getState(moment, converter, isAnother) {
-		let state = {};
+		const state = {};
 		for (let key in converter) {
 			if (isAnother && this.tracks.indexOf(key) !== -1) {
 				key = key + '&' + this.id;
@@ -120,22 +120,43 @@ export class Rekanva {
 
 	_render(target, state, attrs) {
 		const newState = {};
-		for (let key in state) {
-			let newKey = key.split('&')[0];
+		for (const key in state) {
+			const newKey = key.split('&')[0];
 			newState[newKey] = newState[newKey] ? newState[newKey] + state[key] : state[key];
 		}
-		for (let key in newState) {
+		for (const key in newState) {
+			console.log(newState[key], attrs[key], newState[key] + attrs[key])
 			target.to({[key]: (newState[key] + attrs[key]), duration: -1});
 		}
 	}
 
-	init() {
-		this.target.to(Object.assign({}, this.attrs, { duration: -1 }));
+	_addEndState() {
+		if (this.onStop) {
+			const onStop = this.onStop.bind(this);
+			this.onStop = () => {
+				onStop();
+				this.state = 'end';
+			};
+		} else {
+			this.onStop = () => {
+				this.state = 'end';
+			}
+		}
 	}
 
+	// reset() {
+	// 	this.target.to(Object.assign({}, this.attrs, { duration: -1 }));
+	// }
+
 	play() {
+		this.state = 'playing';
+
 		const reverse = this.queue.concat().reverse();
 		reverse.map((item, key) => {
+			// 当最后一组动画的第一个动画执行完毕后，将状态置为end；
+			if (key === 0) {
+				item[0]._addEndState();
+			}
 			if (reverse[key + 1]) {
 				reverse[key + 1][0].rekapi.on('stop', () => {
 					reverse[key].map(rekanva => rekanva.rekapi.play(1));
@@ -146,13 +167,6 @@ export class Rekanva {
 	}
 
 	stop() {
-		this.queue.map((item) => {
-			item.map(rekanva => (rekanva.rekapi.isPlaying && rekanva.rekapi.stop()));
-		});
-	}
-
-
-	stopAll() {
 		this.queue.map((item, key1) => {
 			item.map((rekanva, key2) => {
 				const rekapi = rekanva.rekapi;
@@ -176,43 +190,129 @@ export class Rekanva {
 		})
 	}
 
-	endAll() {
-		let index;
-		this.queue.map((item, key1) => {
-			item.map((rekanva, key2) => {
-				const rekapi = rekanva.rekapi;
-				if (rekapi.isPlaying()) {
-					if (key2 === 0) {
-						// 更新当前动画队列的index
-						index = key1 + 1;
-						// 解除所有stop事件的绑定
-						rekapi.off('stop');
-						rekapi.stop();
-						// 重新绑定
-						rekanva.onStop && rekapi.on('stop', rekanva.onStop);
-						item[key1 + 1] && rekapi.on('stop', () => {
-							item[key1 + 1].map(nextRekanva => nextRekanva.rekapi.play(1));
-						});
-						// 更新target到end状态
+	reset() {
+		switch (this.state) {
+			case 'playing':
+				let index;
+				this.queue.map((item, key1) => {
+					item.map((rekanva, key2) => {
+						const rekapi = rekanva.rekapi;
+						if (rekapi.isPlaying()) {
+
+							if (key2 === 0) {
+								// 更新当前动画队列的index
+								index = key1 + 1;
+								// 解除所有stop事件的绑定
+								rekapi.off('stop');
+								rekapi.stop();
+								// 重新绑定
+								rekanva.onStop && rekapi.on('stop', rekanva.onStop);
+								item[key1 + 1] && rekapi.on('stop', () => {
+									item[key1 + 1].map(nextRekanva => nextRekanva.rekapi.play(1));
+								});
+								// 更新target到reset状态
+								rekanva.target.to(rekanva.attrs, { duration: -1 });
+								// 触发target的onReset事件
+								rekanva.onReset && rekanva.onReset();
+
+							} else {
+								rekapi.off('stop');
+								rekapi.stop();
+								rekanva.onStop && rekapi.on('stop', rekanva.onStop);
+								rekanva.target.to(rekanva.attrs, { duration: -1 });
+								rekanva.onReset && rekanva.onReset();
+							}
+
+						} else if (index === undefined || key1 <= index) {
+							rekanva.target.to(rekanva.attrs, { duration: -1 });
+							rekanva.onReset && rekanva.onReset();
+
+						} else {
+							return;
+						}
+					});
+				});
+				break;	
+
+			case 'init':
+				break;
+
+			case 'end':
+			default:
+				this.queue.map(item => {
+					item.map(rekanva => {
+						rekanva.target.to(rekanva.attrs, { duration: -1 });
+						rekanva.onReset && rekanva.onReset();
+					});
+				})
+				break;
+		}
+		this.state = 'init';
+	}
+
+	end() {
+		switch (this.state) {
+			case 'playing':
+				let index;
+				this.queue.map((item, key1) => {
+					item.map((rekanva, key2) => {
+						const rekapi = rekanva.rekapi;
+						if (rekapi.isPlaying()) {
+
+							if (key2 === 0) {
+								// 更新当前动画队列的index
+								index = key1 + 1;
+								// 解除所有stop事件的绑定
+								rekapi.off('stop');
+								rekapi.stop();
+								// 重新绑定
+								rekanva.onStop && rekapi.on('stop', rekanva.onStop);
+								item[key1 + 1] && rekapi.on('stop', () => {
+									item[key1 + 1].map(nextRekanva => nextRekanva.rekapi.play(1));
+								});
+								// 更新target到end状态
+								rekanva.target.to(Object.assign({}, this._getEndState(rekanva.attrs, rekanva.converter), { duration: -1 }));
+								// 触发traget的onEnd事件
+								rekanva.onEnd && rekanva.onEnd();
+
+							} else {
+								rekapi.off('stop');
+								rekapi.stop();
+								rekanva.onStop && rekapi.on('stop', rekanva.onStop);
+								rekanva.target.to(Object.assign({}, this._getEndState(rekanva.attrs, rekanva.converter), { duration: -1 }));
+								rekanva.onEnd && rekanva.onEnd();
+							}
+
+						} else if (index !== undefined && key1 >= index) {
+							rekanva.target.to(Object.assign({}, this._getEndState(rekanva.attrs, rekanva.converter), { duration: -1 }));
+							rekanva.onEnd && rekanva.onEnd();
+
+						} else {
+							return;
+						}
+					})
+				})
+				break;
+
+			case 'init':
+				this.queue.map(item => {
+					item.map(rekanva => {
 						rekanva.target.to(Object.assign({}, this._getEndState(rekanva.attrs, rekanva.converter), { duration: -1 }));
-						// 触发traget的onEnd事件
 						rekanva.onEnd && rekanva.onEnd();
-					}
-				} else if (index !== undefined && key1 >= index) {
-					// 更新target到end状态
-					rekanva.target.to(Object.assign({}, this._getEndState(rekanva.attrs, rekanva.converter), { duration: -1 }));
-					// 触发traget的onEnd事件
-					rekanva.onEnd && rekanva.onEnd();
-				} else {
-					return;
-				}
-			})
-		})
+					})
+				})
+				break;
+
+			case 'end':
+			default:
+				break;
+		}
+		this.state = 'end';
 	}
 
 	_getEndState(attrs, converter) {
 		const state = {};
-		for (let key in converter) {
+		for (const key in converter) {
 			switch (key) {
 				case 'scaleX':
 				case 'scaleY':
@@ -231,7 +331,6 @@ export class Rekanva {
 	_combineTimeline(lastTimeline, nextTimeline) {
 		const lastTrackNames = lastTimeline.trackNames;
 		const nextTrackNames = nextTimeline.trackNames;
-		const sameTrackNames = [];
 
 		lastTrackNames.map(name => {
 			const key = name.split('&')[0];
@@ -301,7 +400,7 @@ export class Rekanva {
 	}
 
 	to(options) {
-		const { target = this.target, duration = this.duration, easing = this.easing, ...props } = options;
+		const { target = this.target, duration = this.duration, easing = this.easing } = options;
 		const rekanva = new Rekanva(Object.assign({}, options, { target, duration, easing }));
 		this.queue.push([ rekanva ]);
 		return this;
@@ -310,7 +409,7 @@ export class Rekanva {
 }
 
 export function Path(path) {
-	const pathElement = document.createElementNS('http://www.w3.org/2000/svg',"path"); 
+	const pathElement = document.createElementNS('http://www.w3.org/2000/svg', 'path'); 
 	pathElement.setAttributeNS(null, 'd', path);
 
 	return function(duration) {
