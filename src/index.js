@@ -125,7 +125,6 @@ export class Rekanva {
 			newState[newKey] = newState[newKey] ? newState[newKey] + state[key] : state[key];
 		}
 		for (const key in newState) {
-			console.log(newState[key], attrs[key], newState[key] + attrs[key])
 			target.to({[key]: (newState[key] + attrs[key]), duration: -1});
 		}
 	}
@@ -143,10 +142,6 @@ export class Rekanva {
 			}
 		}
 	}
-
-	// reset() {
-	// 	this.target.to(Object.assign({}, this.attrs, { duration: -1 }));
-	// }
 
 	play() {
 		this.state = 'playing';
@@ -191,6 +186,7 @@ export class Rekanva {
 	}
 
 	reset() {
+		//debugger;
 		switch (this.state) {
 			case 'playing':
 				let index;
@@ -211,7 +207,7 @@ export class Rekanva {
 									item[key1 + 1].map(nextRekanva => nextRekanva.rekapi.play(1));
 								});
 								// 更新target到reset状态
-								rekanva.target.to(rekanva.attrs, { duration: -1 });
+								rekanva.target.to(Object.assign({}, this._getInitState(rekanva.attrs, rekanva.converter), { duration: -1 }));
 								// 触发target的onReset事件
 								rekanva.onReset && rekanva.onReset();
 
@@ -219,12 +215,12 @@ export class Rekanva {
 								rekapi.off('stop');
 								rekapi.stop();
 								rekanva.onStop && rekapi.on('stop', rekanva.onStop);
-								rekanva.target.to(rekanva.attrs, { duration: -1 });
+								rekanva.target.to(Object.assign({}, this._getInitState(rekanva.attrs, rekanva.converter), { duration: -1 }));
 								rekanva.onReset && rekanva.onReset();
 							}
 
 						} else if (index === undefined || key1 <= index) {
-							rekanva.target.to(rekanva.attrs, { duration: -1 });
+							rekanva.target.to(Object.assign({}, this._getInitState(rekanva.attrs, rekanva.converter), { duration: -1 }));
 							rekanva.onReset && rekanva.onReset();
 
 						} else {
@@ -241,7 +237,7 @@ export class Rekanva {
 			default:
 				this.queue.map(item => {
 					item.map(rekanva => {
-						rekanva.target.to(rekanva.attrs, { duration: -1 });
+						rekanva.target.to(Object.assign({}, this._getInitState(rekanva.attrs, rekanva.converter), { duration: -1 }));
 						rekanva.onReset && rekanva.onReset();
 					});
 				})
@@ -308,6 +304,14 @@ export class Rekanva {
 				break;
 		}
 		this.state = 'end';
+	}
+
+	_getInitState(attrs, converter) {
+		const state = {};
+		for (const key in converter) {
+			state[key] = attrs[key];
+		}
+		return state;
 	}
 
 	_getEndState(attrs, converter) {
