@@ -113,7 +113,8 @@ var Rekanva = exports.Rekanva = function () {
 		    onPlay = options.onPlay,
 		    onPause = options.onPause,
 		    onEnd = options.onEnd,
-		    props = _objectWithoutProperties(options, ['target', 'easing', 'duration', 'onStop', 'onPlay', 'onPause', 'onEnd']);
+		    onReset = options.onReset,
+		    props = _objectWithoutProperties(options, ['target', 'easing', 'duration', 'onStop', 'onPlay', 'onPause', 'onEnd', 'onReset']);
 
 		this.id = this._getHash();
 		this.target = target;
@@ -127,6 +128,7 @@ var Rekanva = exports.Rekanva = function () {
 		this.onPlay = onPlay;
 		this.onPause = onPause;
 		this.onEnd = onEnd;
+		this.onReset = onReset;
 
 		if (this.animOpt.path) {
 			var _animOpt = this.animOpt,
@@ -156,6 +158,7 @@ var Rekanva = exports.Rekanva = function () {
 		this._isFunction(this.onPlay) && this.rekapi.on('play', this.onPlay.bind(this));
 		this._isFunction(this.onPause) && this.rekapi.on('pause', this.onPlay.bind(this));
 		this._isFunction(this.onEnd) && this.rekapi.on('animationComplete', this.onEnd.bind(this));
+		// this._isFunction(this.onReset) && this.rekapi.on('reset', this.onReset.bind(this));
 	}
 
 	_createClass(Rekanva, [{
@@ -221,12 +224,14 @@ var Rekanva = exports.Rekanva = function () {
 			switch (key.split('&')[0]) {
 				case 'scaleX':
 				case 'scaleY':
+				case 'width':
+				case 'height':
 					this.attrs[key] === undefined && (this.attrs[key] = 1);
-					converter ? state[key] = converter - this.attrs[key] : state[key] = 0;
+					converter !== undefined ? state[key] = converter - this.attrs[key] : state[key] = 0;
 					break;
 
 				default:
-					converter ? state[key] = converter : state[key] = 0;
+					converter !== undefined ? state[key] = converter : state[key] = 0;
 					break;
 			}
 		}
@@ -245,15 +250,33 @@ var Rekanva = exports.Rekanva = function () {
 			}
 		}
 	}, {
-		key: 'init',
-		value: function init() {
-			this.target.to(Object.assign({}, this.attrs, { duration: -1 }));
+		key: '_addEndState',
+		value: function _addEndState() {
+			var _this2 = this;
+
+			if (this.onStop) {
+				var onStop = this.onStop.bind(this);
+				this.onStop = function () {
+					onStop();
+					_this2.state = 'end';
+				};
+			} else {
+				this.onStop = function () {
+					_this2.state = 'end';
+				};
+			}
 		}
 	}, {
 		key: 'play',
 		value: function play() {
+			this.state = 'playing';
+
 			var reverse = this.queue.concat().reverse();
 			reverse.map(function (item, key) {
+				// 当最后一组动画的第一个动画执行完毕后，将状态置为end；
+				if (key === 0) {
+					item[0]._addEndState();
+				}
 				if (reverse[key + 1]) {
 					reverse[key + 1][0].rekapi.on('stop', function () {
 						reverse[key].map(function (rekanva) {
@@ -269,15 +292,6 @@ var Rekanva = exports.Rekanva = function () {
 	}, {
 		key: 'stop',
 		value: function stop() {
-			this.queue.map(function (item) {
-				item.map(function (rekanva) {
-					return rekanva.rekapi.isPlaying && rekanva.rekapi.stop();
-				});
-			});
-		}
-	}, {
-		key: 'stopAll',
-		value: function stopAll() {
 			this.queue.map(function (item, key1) {
 				item.map(function (rekanva, key2) {
 					var rekapi = rekanva.rekapi;
@@ -303,43 +317,138 @@ var Rekanva = exports.Rekanva = function () {
 			});
 		}
 	}, {
-		key: 'endAll',
-		value: function endAll() {
-			var _this2 = this;
+		key: 'reset',
+		value: function reset() {
+			var _this3 = this;
 
-			var index = void 0;
-			this.queue.map(function (item, key1) {
-				item.map(function (rekanva, key2) {
-					var rekapi = rekanva.rekapi;
-					if (rekapi.isPlaying()) {
-						if (key2 === 0) {
-							// 更新当前动画队列的index
-							index = key1 + 1;
-							// 解除所有stop事件的绑定
-							rekapi.off('stop');
-							rekapi.stop();
-							// 重新绑定
-							rekanva.onStop && rekapi.on('stop', rekanva.onStop);
-							item[key1 + 1] && rekapi.on('stop', function () {
-								item[key1 + 1].map(function (nextRekanva) {
-									return nextRekanva.rekapi.play(1);
-								});
-							});
-							// 更新target到end状态
-							rekanva.target.to(Object.assign({}, _this2._getEndState(rekanva.attrs, rekanva.converter), { duration: -1 }));
-							// 触发traget的onEnd事件
+			//debugger;
+			switch (this.state) {
+				case 'playing':
+					var index = void 0;
+					this.queue.map(function (item, key1) {
+						item.map(function (rekanva, key2) {
+							var rekapi = rekanva.rekapi;
+							if (rekapi.isPlaying()) {
+
+								if (key2 === 0) {
+									// 更新当前动画队列的index
+									index = key1 + 1;
+									// 解除所有stop事件的绑定
+									rekapi.off('stop');
+									rekapi.stop();
+									// 重新绑定
+									rekanva.onStop && rekapi.on('stop', rekanva.onStop);
+									item[key1 + 1] && rekapi.on('stop', function () {
+										item[key1 + 1].map(function (nextRekanva) {
+											return nextRekanva.rekapi.play(1);
+										});
+									});
+									// 更新target到reset状态
+									rekanva.target.to(Object.assign({}, _this3._getInitState(rekanva.attrs, rekanva.converter), { duration: -1 }));
+									// 触发target的onReset事件
+									rekanva.onReset && rekanva.onReset();
+								} else {
+									rekapi.off('stop');
+									rekapi.stop();
+									rekanva.onStop && rekapi.on('stop', rekanva.onStop);
+									rekanva.target.to(Object.assign({}, _this3._getInitState(rekanva.attrs, rekanva.converter), { duration: -1 }));
+									rekanva.onReset && rekanva.onReset();
+								}
+							} else if (index === undefined || key1 <= index) {
+								rekanva.target.to(Object.assign({}, _this3._getInitState(rekanva.attrs, rekanva.converter), { duration: -1 }));
+								rekanva.onReset && rekanva.onReset();
+							} else {
+								return;
+							}
+						});
+					});
+					break;
+
+				case 'init':
+					break;
+
+				case 'end':
+				default:
+					this.queue.map(function (item) {
+						item.map(function (rekanva) {
+							rekanva.target.to(Object.assign({}, _this3._getInitState(rekanva.attrs, rekanva.converter), { duration: -1 }));
+							rekanva.onReset && rekanva.onReset();
+						});
+					});
+					break;
+			}
+			this.state = 'init';
+		}
+	}, {
+		key: 'end',
+		value: function end() {
+			var _this4 = this;
+
+			switch (this.state) {
+				case 'playing':
+					var index = void 0;
+					this.queue.map(function (item, key1) {
+						item.map(function (rekanva, key2) {
+							var rekapi = rekanva.rekapi;
+							if (rekapi.isPlaying()) {
+
+								if (key2 === 0) {
+									// 更新当前动画队列的index
+									index = key1 + 1;
+									// 解除所有stop事件的绑定
+									rekapi.off('stop');
+									rekapi.stop();
+									// 重新绑定
+									rekanva.onStop && rekapi.on('stop', rekanva.onStop);
+									item[key1 + 1] && rekapi.on('stop', function () {
+										item[key1 + 1].map(function (nextRekanva) {
+											return nextRekanva.rekapi.play(1);
+										});
+									});
+									// 更新target到end状态
+									rekanva.target.to(Object.assign({}, _this4._getEndState(rekanva.attrs, rekanva.converter), { duration: -1 }));
+									// 触发traget的onEnd事件
+									rekanva.onEnd && rekanva.onEnd();
+								} else {
+									rekapi.off('stop');
+									rekapi.stop();
+									rekanva.onStop && rekapi.on('stop', rekanva.onStop);
+									rekanva.target.to(Object.assign({}, _this4._getEndState(rekanva.attrs, rekanva.converter), { duration: -1 }));
+									rekanva.onEnd && rekanva.onEnd();
+								}
+							} else if (index !== undefined && key1 >= index) {
+								rekanva.target.to(Object.assign({}, _this4._getEndState(rekanva.attrs, rekanva.converter), { duration: -1 }));
+								rekanva.onEnd && rekanva.onEnd();
+							} else {
+								return;
+							}
+						});
+					});
+					break;
+
+				case 'init':
+					this.queue.map(function (item) {
+						item.map(function (rekanva) {
+							rekanva.target.to(Object.assign({}, _this4._getEndState(rekanva.attrs, rekanva.converter), { duration: -1 }));
 							rekanva.onEnd && rekanva.onEnd();
-						}
-					} else if (index !== undefined && key1 >= index) {
-						// 更新target到end状态
-						rekanva.target.to(Object.assign({}, _this2._getEndState(rekanva.attrs, rekanva.converter), { duration: -1 }));
-						// 触发traget的onEnd事件
-						rekanva.onEnd && rekanva.onEnd();
-					} else {
-						return;
-					}
-				});
-			});
+						});
+					});
+					break;
+
+				case 'end':
+				default:
+					break;
+			}
+			this.state = 'end';
+		}
+	}, {
+		key: '_getInitState',
+		value: function _getInitState(attrs, converter) {
+			var state = {};
+			for (var key in converter) {
+				state[key] = attrs[key];
+			}
+			return state;
 		}
 	}, {
 		key: '_getEndState',
@@ -349,6 +458,8 @@ var Rekanva = exports.Rekanva = function () {
 				switch (key) {
 					case 'scaleX':
 					case 'scaleY':
+					case 'width':
+					case 'height':
 						state[key] = converter[key];
 						break;
 
@@ -365,22 +476,21 @@ var Rekanva = exports.Rekanva = function () {
 	}, {
 		key: '_combineTimeline',
 		value: function _combineTimeline(lastTimeline, nextTimeline) {
-			var _this3 = this;
+			var _this5 = this;
 
 			var lastTrackNames = lastTimeline.trackNames;
 			var nextTrackNames = nextTimeline.trackNames;
-			var sameTrackNames = [];
 
 			lastTrackNames.map(function (name) {
 				var key = name.split('&')[0];
 				var index = nextTrackNames.indexOf(key);
 				if (index !== -1) {
-					nextTimeline.trackNames.splice(index, 1, key + '&' + _this3.id);
+					nextTimeline.trackNames.splice(index, 1, key + '&' + _this5.id);
 					var propertyTrack = nextTimeline.propertyTracks[key];
 					delete nextTimeline.propertyTracks[key];
-					nextTimeline.propertyTracks[key + '&' + _this3.id] = propertyTrack;
-					nextTimeline.propertyTracks[key + '&' + _this3.id].map(function (item) {
-						item.name = key + '&' + _this3.id;
+					nextTimeline.propertyTracks[key + '&' + _this5.id] = propertyTrack;
+					nextTimeline.propertyTracks[key + '&' + _this5.id].map(function (item) {
+						item.name = key + '&' + _this5.id;
 					});
 				}
 			});
@@ -403,7 +513,7 @@ var Rekanva = exports.Rekanva = function () {
 	}, {
 		key: 'combine',
 		value: function combine(options) {
-			var _this4 = this;
+			var _this6 = this;
 
 			var _options$target = options.target,
 			    target = _options$target === undefined ? this.target : _options$target,
@@ -432,8 +542,8 @@ var Rekanva = exports.Rekanva = function () {
 
 				var nextTimeline = function () {
 					var actor = new _rekapi.Actor();
-					actor.importTimeline(_this4._addTimeline(_this4.converter));
-					_this4.pathTimeline && actor.importTimeline(_this4.pathTimeline);
+					actor.importTimeline(_this6._addTimeline(_this6.converter));
+					_this6.pathTimeline && actor.importTimeline(_this6.pathTimeline);
 					return actor.exportTimeline();
 				}();
 
@@ -458,8 +568,7 @@ var Rekanva = exports.Rekanva = function () {
 			    _options$duration3 = options.duration,
 			    duration = _options$duration3 === undefined ? this.duration : _options$duration3,
 			    _options$easing3 = options.easing,
-			    easing = _options$easing3 === undefined ? this.easing : _options$easing3,
-			    props = _objectWithoutProperties(options, ['target', 'duration', 'easing']);
+			    easing = _options$easing3 === undefined ? this.easing : _options$easing3;
 
 			var rekanva = new Rekanva(Object.assign({}, options, { target: target, duration: duration, easing: easing }));
 			this.queue.push([rekanva]);
@@ -471,7 +580,7 @@ var Rekanva = exports.Rekanva = function () {
 }();
 
 function Path(path) {
-	var pathElement = document.createElementNS('http://www.w3.org/2000/svg', "path");
+	var pathElement = document.createElementNS('http://www.w3.org/2000/svg', 'path');
 	pathElement.setAttributeNS(null, 'd', path);
 
 	return function (duration) {

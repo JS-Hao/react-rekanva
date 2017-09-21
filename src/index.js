@@ -13,7 +13,7 @@ const _converter = {
 
 export class Rekanva {
 	constructor(options) {
-		const { target, easing = 'linear', duration = 1000, onStop, onPlay, onPause, onEnd, ...props } = options;
+		const { target, easing = 'linear', duration = 1000, onStop, onPlay, onPause, onEnd, onReset, ...props } = options;
 		this.id = this._getHash();
 		this.target = target;
 		this.attrs = Object.assign({}, target.attrs);
@@ -26,6 +26,7 @@ export class Rekanva {
 		this.onPlay = onPlay;
 		this.onPause = onPause;
 		this.onEnd = onEnd;
+		this.onReset = onReset;
 
 		if (this.animOpt.path) {
 			const { path, ...others } = this.animOpt;
@@ -52,6 +53,7 @@ export class Rekanva {
 		this._isFunction(this.onPlay) && this.rekapi.on('play', this.onPlay.bind(this));
 		this._isFunction(this.onPause) && this.rekapi.on('pause', this.onPlay.bind(this));
 		this._isFunction(this.onEnd) && this.rekapi.on('animationComplete', this.onEnd.bind(this));
+		// this._isFunction(this.onReset) && this.rekapi.on('reset', this.onReset.bind(this));
 	}
 
 	_getHash() {
@@ -108,12 +110,14 @@ export class Rekanva {
 		switch (key.split('&')[0]) {
 			case 'scaleX':
 			case 'scaleY':
+			case 'width':
+			case 'height':
 				(this.attrs[key] === undefined) && (this.attrs[key] = 1);
-				converter ? (state[key] = converter - this.attrs[key]) : (state[key] = 0);
+				(converter !== undefined) ? (state[key] = converter - this.attrs[key]) : (state[key] = 0);
 				break;
 
 			default: 
-				converter ? (state[key] = converter) : (state[key] = 0);
+				(converter !== undefined ) ? (state[key] = converter) : (state[key] = 0);
 				break;
 		}
 	}
@@ -320,6 +324,8 @@ export class Rekanva {
 			switch (key) {
 				case 'scaleX':
 				case 'scaleY':
+				case 'width':
+				case 'height':
 					state[key] = converter[key];
 					break;
 
