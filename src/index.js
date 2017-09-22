@@ -8,7 +8,8 @@ const _converter = {
 	'scaleY'    :  'scaleY',
 	'opacity'   :  'opacity',
 	'width'     :  'width',
-	'height'    :  'height'
+	'height'    :  'height',
+	'rotate'    :  'rotate'
 }
 
 export class Rekanva {
@@ -129,7 +130,14 @@ export class Rekanva {
 			newState[newKey] = newState[newKey] ? newState[newKey] + state[key] : state[key];
 		}
 		for (const key in newState) {
-			target.to({[key]: (newState[key] + attrs[key]), duration: -1});
+			switch (key) {
+				case 'rotate':
+					target.rotation(newState[key]);
+					break;
+				default:
+					console.log(newState[key], attrs[key], (newState[key] + attrs[key]))
+					target.to({[key]: (newState[key] + attrs[key]), duration: -1});
+			}
 		}
 	}
 
@@ -190,7 +198,6 @@ export class Rekanva {
 	}
 
 	reset() {
-		//debugger;
 		switch (this.state) {
 			case 'playing':
 				let index;
@@ -341,7 +348,6 @@ export class Rekanva {
 	_combineTimeline(lastTimeline, nextTimeline) {
 		const lastTrackNames = lastTimeline.trackNames;
 		const nextTrackNames = nextTimeline.trackNames;
-
 		lastTrackNames.map(name => {
 			const key = name.split('&')[0];
 			const index = nextTrackNames.indexOf(key);
@@ -382,6 +388,7 @@ export class Rekanva {
 				this.converter = this._toConvert(others);
 				this.pathTimeline = path(this.duration, this.attrs.x, this.attrs.y);
 			} else {
+				this.pathTimeline = null;
 				this.converter = this._toConvert(props);
 			}
 
@@ -390,15 +397,18 @@ export class Rekanva {
 			const nextTimeline = (() => {
 				const actor = new Actor();
 				actor.importTimeline(this._addTimeline(this.converter));
+
 				this.pathTimeline && actor.importTimeline(this.pathTimeline);
 				return actor.exportTimeline();
 			})();
+			console.log(nextTimeline)
 
 			const lastTimeline = this.actor.exportTimeline();
 			const timelines = this._combineTimeline(lastTimeline, nextTimeline);
 			this.actor.removeAllKeyframes();
 			this.actor.importTimeline(timelines.lastTimeline);
 			this.actor.importTimeline(timelines.nextTimeline);
+			
 
 			this.rekapi.addActor(this.actor);
 
