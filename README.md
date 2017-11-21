@@ -66,7 +66,7 @@ var rekanva = new Rekanva({
   duration: 2000,
   easing: 'easeOutExpo',
   onPlay: function() {
-    this.update({ translateX: 300px }) // 实际上动画执行后会向x正方向移动300px
+    this.update({ translateX: 300 }) // 实际上动画执行后会向x正方向移动300px
   }
 })
 ```
@@ -107,6 +107,6 @@ var rekanva = new Rekanva({
 除此之外，react-rekanva还允许你手动触发以下事件：
 
 * ```play```          动画开始执行；
-* ```init```          重置动画（通过```to```, ```combine```方法添加的动画也将全部重置）;
+* ```reset```          重置动画（通过```to```, ```combine```方法添加的动画也将全部重置）;
 * ```stop```          暂停动画（通过```to```, ```combine```方法添加的动画也将全部停止）;
-* ```end```           结束所有的动画（通过```to```, ```combine```方法添加的动画也将全部结束）;
+* ```end```           结束所有的动画（通过```to```, ```combine```方法添加的动画也将全部结束）;            
