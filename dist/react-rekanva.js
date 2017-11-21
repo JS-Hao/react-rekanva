@@ -95,7 +95,13 @@ var _converter = {
 	'scaleY': 'scaleY',
 	'opacity': 'opacity',
 	'width': 'width',
-	'height': 'height'
+	'height': 'height',
+	'rotate': 'rotate',
+	'clipWidth': 'clipWidth',
+	'clipHeight': 'clipHeight',
+	'clipX': 'clipX',
+	'clipY': 'clipY',
+	'rotation': 'rotation'
 };
 
 var Rekanva = exports.Rekanva = function () {
@@ -109,34 +115,46 @@ var Rekanva = exports.Rekanva = function () {
 		    easing = _options$easing === undefined ? 'linear' : _options$easing,
 		    _options$duration = options.duration,
 		    duration = _options$duration === undefined ? 1000 : _options$duration,
+		    initOpt = options.initOpt,
 		    onStop = options.onStop,
 		    onPlay = options.onPlay,
 		    onPause = options.onPause,
 		    onEnd = options.onEnd,
 		    onReset = options.onReset,
-		    props = _objectWithoutProperties(options, ['target', 'easing', 'duration', 'onStop', 'onPlay', 'onPause', 'onEnd', 'onReset']);
+		    props = _objectWithoutProperties(options, ['target', 'easing', 'duration', 'initOpt', 'onStop', 'onPlay', 'onPause', 'onEnd', 'onReset']);
 
 		this.id = this._getHash();
 		this.target = target;
-		this.attrs = Object.assign({}, target.attrs);
+		this.initOpt = initOpt || {};
+		this.attrs = Object.assign({}, target.attrs, this.initOpt);
 		this.easing = easing;
 		this.duration = duration;
 		this.animOpt = props;
 		this.rekapi = new _rekapi.Rekapi(document.createElement('canvas').getContext('2d'));
 		this.pathTimeline = null;
-		this.onStop = onStop;
-		this.onPlay = onPlay;
-		this.onPause = onPause;
-		this.onEnd = onEnd;
-		this.onReset = onReset;
 
-		if (this.animOpt.path) {
-			var _animOpt = this.animOpt,
-			    path = _animOpt.path,
-			    others = _objectWithoutProperties(_animOpt, ['path']);
+		this.onStop = [];
+		this.onPlay = [];
+		this.onPause = [];
+		this.onEnd = [];
+		this.onReset = [];
+		this.state = 'init';
 
-			this.animOpt = others;
+		var _animOpt = this.animOpt,
+		    path = _animOpt.path,
+		    timeline = _animOpt.timeline,
+		    base = _objectWithoutProperties(_animOpt, ['path', 'timeline']);
+
+		this.animOpt = base;
+		if (path) {
 			this.pathTimeline = path(this.duration, this.attrs.x, this.attrs.y);
+		} else {
+			this.pathTimeline = null;
+		}
+		if (timeline) {
+			this.specialTimeline = this._addSpecialTimeline(timeline);
+		} else {
+			this.specialTimeline = null;
 		}
 
 		this.converter = this._toConvert(this.animOpt);
@@ -149,16 +167,40 @@ var Rekanva = exports.Rekanva = function () {
 		});
 
 		this.actor.importTimeline(this._addTimeline(this.converter));
+
 		this.pathTimeline && this.actor.importTimeline(this.pathTimeline);
+		this.specialTimeline && this.actor.importTimeline(this.specialTimeline);
+
 		this.rekapi.addActor(this.actor);
 		this.queue = [[this]];
 
 		// 事件监听
-		this._isFunction(this.onStop) && this.rekapi.on('stop', this.onStop.bind(this));
-		this._isFunction(this.onPlay) && this.rekapi.on('play', this.onPlay.bind(this));
-		this._isFunction(this.onPause) && this.rekapi.on('pause', this.onPlay.bind(this));
-		this._isFunction(this.onEnd) && this.rekapi.on('animationComplete', this.onEnd.bind(this));
-		// this._isFunction(this.onReset) && this.rekapi.on('reset', this.onReset.bind(this));
+		this._isFunction(onStop) && this.onStop.push(onStop);
+		this._isFunction(onPlay) && this.onPlay.push(onPlay);
+		this._isFunction(onPause) && this.onPause.push(onPause);
+		this._isFunction(onEnd) && this.onEnd.push(onEnd);
+		this._isFunction(onReset) && this.onReset.unshift(onReset);
+
+		this.rekapi.on('stop', function () {
+			_this.onStop.map(function (func) {
+				return func.call(_this);
+			});
+		});
+		this.rekapi.on('play', function () {
+			_this.onPlay.map(function (func) {
+				return func.call(_this);
+			});
+		});
+		this.rekapi.on('pause', function () {
+			_this.onPause.map(function (func) {
+				return func.call(_this);
+			});
+		});
+		this.rekapi.on('animationComplete', function () {
+			_this.onEnd.map(function (func) {
+				return func.call(_this);
+			});
+		});
 	}
 
 	_createClass(Rekanva, [{
@@ -171,6 +213,22 @@ var Rekanva = exports.Rekanva = function () {
 		value: function _addTimeline(converter, isAnother) {
 			var actor = new _rekapi.Actor();
 			actor.keyframe(0, this._getState('start', converter, isAnother)).keyframe(this.duration, this._getState('end', converter, isAnother));
+			return actor.exportTimeline();
+		}
+	}, {
+		key: '_addSpecialTimeline',
+		value: function _addSpecialTimeline(timeline) {
+			var actor = new _rekapi.Actor();
+			for (var index in timeline) {
+				var frame = void 0;
+				var converter = this._toConvert(timeline[index]);
+				if (index.indexOf('%') !== -1) {
+					frame = parseFloat(index) / 100 * this.duration;
+				} else {
+					frame = parseFloat(index) * this.duration;
+				}
+				actor.keyframe(frame, this._getState('end', converter));
+			}
 			return actor.exportTimeline();
 		}
 	}, {
@@ -226,6 +284,11 @@ var Rekanva = exports.Rekanva = function () {
 				case 'scaleY':
 				case 'width':
 				case 'height':
+				case 'clipX':
+				case 'clipY':
+				case 'clipWidth':
+				case 'clipHeight':
+				case 'opacity':
 					this.attrs[key] === undefined && (this.attrs[key] = 1);
 					converter !== undefined ? state[key] = converter - this.attrs[key] : state[key] = 0;
 					break;
@@ -236,46 +299,96 @@ var Rekanva = exports.Rekanva = function () {
 			}
 		}
 	}, {
+		key: '_to',
+		value: function _to(target, attr) {
+			target.setAttrs(attr);
+			var layer = target.getLayer();
+			layer.batchDraw();
+		}
+	}, {
 		key: '_render',
 		value: function _render(target, state, attrs) {
 			var newState = {};
+			var that = this;
 			for (var key in state) {
 				var newKey = key.split('&')[0];
 				newState[newKey] = newState[newKey] ? newState[newKey] + state[key] : state[key];
 			}
 			for (var _key in newState) {
-				var _target$to;
-
-				target.to((_target$to = {}, _defineProperty(_target$to, _key, newState[_key] + attrs[_key]), _defineProperty(_target$to, 'duration', -1), _target$to));
+				switch (_key) {
+					case 'rotate':
+						target.rotation(newState[_key]);
+						break;
+					default:
+						that._to(target, _defineProperty({}, _key, newState[_key] + attrs[_key]));
+				}
 			}
 		}
 	}, {
 		key: '_addEndState',
-		value: function _addEndState() {
-			var _this2 = this;
+		value: function _addEndState(func) {
+			this.onEnd.push(func);
+		}
+	}, {
+		key: 'update',
+		value: function update(data) {
+			// const animData = opt.animData || {};
+			// const initData = opt.initData || {};
+			// const { animData, initData } = opt;
+			var converter = Object.assign({}, this.converter, data);
+			this.attrs = Object.assign({}, this.target.attrs, this.initOpt);
+			this.rekapi.removeActor(this.actor);
+			this.actor.removeAllKeyframes();
 
-			if (this.onStop) {
-				var onStop = this.onStop.bind(this);
-				this.onStop = function () {
-					onStop();
-					_this2.state = 'end';
-				};
-			} else {
-				this.onStop = function () {
-					_this2.state = 'end';
-				};
-			}
+			this.actor.importTimeline(this._addTimeline(converter));
+			this.pathTimeline && this.actor.importTimeline(this.pathTimeline);
+			this.specialTimeline && this.actor.importTimeline(this.specialTimeline);
+			this.rekapi.addActor(this.actor);
+		}
+	}, {
+		key: 'addEnd',
+		value: function addEnd(func) {
+			this.onEnd.push(func);
+		}
+	}, {
+		key: 'addReset',
+		value: function addReset(func) {
+			this.onReset.onReset(func);
+		}
+	}, {
+		key: 'getLastItem',
+		value: function getLastItem(arr) {
+			var maxTime = void 0,
+			    lastItem = void 0;
+			arr.map(function (item) {
+				var duration = item.duration;
+				if (maxTime) {
+					if (duration >= maxTime) {
+						maxTime = duration;
+						lastItem = item;
+					}
+				} else {
+					maxTime = duration;
+					lastItem = item;
+				}
+			});
+			return lastItem;
 		}
 	}, {
 		key: 'play',
 		value: function play() {
+			var _this2 = this;
+
 			this.state = 'playing';
 
 			var reverse = this.queue.concat().reverse();
 			reverse.map(function (item, key) {
 				// 当最后一组动画的第一个动画执行完毕后，将状态置为end；
 				if (key === 0) {
-					item[0]._addEndState();
+					var lastItem = _this2.getLastItem(item);
+					lastItem._addEndState(function () {
+						_this2.state = 'end';
+					});
 				}
 				if (reverse[key + 1]) {
 					reverse[key + 1][0].rekapi.on('stop', function () {
@@ -292,6 +405,8 @@ var Rekanva = exports.Rekanva = function () {
 	}, {
 		key: 'stop',
 		value: function stop() {
+			var _this3 = this;
+
 			this.queue.map(function (item, key1) {
 				item.map(function (rekanva, key2) {
 					var rekapi = rekanva.rekapi;
@@ -301,11 +416,21 @@ var Rekanva = exports.Rekanva = function () {
 							rekapi.off('stop');
 							rekapi.stop();
 							// 手动触发onStop事件
-							rekanva.onStop && rekanva.onStop();
+							//rekanva.onStop && rekanva.onStop();
+							rekanva.onStop.map(function (func) {
+								return func.call(_this3);
+							});
 							// 重新绑定
-							rekanva.onStop && rekapi.on('stop', rekanva.onStop);
-							item[key1 + 1] && rekapi.on('stop', function () {
-								item[key1 + 1].map(function (nextRekanva) {
+							rekapi.on('stop', function () {
+								rekanva.onStop.map(function (func) {
+									return func.call(_this3);
+								});
+							});
+							// item[key1 + 1] && rekapi.on('stop', () => {
+							// 	item[key1 + 1].map(nextRekanva => nextRekanva.rekapi.play(1));
+							// });
+							_this3.queue[key1 + 1] && rekapi.on('stop', function () {
+								_this3.queue[key1 + 1].map(function (nextRekanva) {
 									return nextRekanva.rekapi.play(1);
 								});
 							});
@@ -317,11 +442,45 @@ var Rekanva = exports.Rekanva = function () {
 			});
 		}
 	}, {
+		key: 'getFirstAndLastState',
+		value: function getFirstAndLastState(queue) {
+			var state0 = void 0,
+			    state1 = void 0,
+			    minTime = void 0;
+			queue[0].map(function (item) {
+				var duration = item.duration;
+				if (state0) {
+					if (duration <= minTime) {
+						state0 = item.state;
+						minTime = duration;
+					}
+				} else {
+					state0 = item.state;
+					minTime = duration;
+				}
+			});
+
+			queue[queue.length - 1].map(function (item) {
+				var duration = item.duration;
+				if (state1) {
+					if (duration >= minTime) {
+						state1 = item.state;
+						maxTime = duration;
+					}
+				} else {
+					state1 = item.state;
+					maxTime = duration;
+				}
+			});
+
+			return [state0, state1];
+		}
+	}, {
 		key: 'reset',
 		value: function reset() {
-			var _this3 = this;
+			var _this4 = this;
 
-			//debugger;
+			var resetQueue = [];
 			switch (this.state) {
 				case 'playing':
 					var index = void 0;
@@ -337,26 +496,50 @@ var Rekanva = exports.Rekanva = function () {
 									rekapi.off('stop');
 									rekapi.stop();
 									// 重新绑定
-									rekanva.onStop && rekapi.on('stop', rekanva.onStop);
-									item[key1 + 1] && rekapi.on('stop', function () {
-										item[key1 + 1].map(function (nextRekanva) {
+									rekapi.on('stop', function () {
+										rekanva.onStop.map(function (func) {
+											return func.call(_this4);
+										});
+									});
+
+									_this4.queue[key1 + 1] && rekapi.on('stop', function () {
+										_this4.queue[key1 + 1].map(function (nextRekanva) {
 											return nextRekanva.rekapi.play(1);
 										});
 									});
 									// 更新target到reset状态
-									rekanva.target.to(Object.assign({}, _this3._getInitState(rekanva.attrs, rekanva.converter), { duration: -1 }));
+									_this4._to(rekanva.target, Object.assign({}, _this4._getInitState(rekanva.attrs, rekanva.converter)));
 									// 触发target的onReset事件
-									rekanva.onReset && rekanva.onReset();
+									// rekanva.onReset.map(func => func.call(this));
+									resetQueue.unshift(function () {
+										rekanva.onReset.map(function (func) {
+											return func.call(_this4);
+										});
+									});
 								} else {
 									rekapi.off('stop');
 									rekapi.stop();
-									rekanva.onStop && rekapi.on('stop', rekanva.onStop);
-									rekanva.target.to(Object.assign({}, _this3._getInitState(rekanva.attrs, rekanva.converter), { duration: -1 }));
-									rekanva.onReset && rekanva.onReset();
+									rekapi.on('stop', function () {
+										rekanva.onStop.map(function (func) {
+											return func.call(_this4);
+										});
+									});
+									_this4._to(rekanva.target, Object.assign({}, _this4._getInitState(rekanva.attrs, rekanva.converter)));
+									// rekanva.onReset.map(func => func.call(this));
+									resetQueue.unshift(function () {
+										rekanva.onReset.map(function (func) {
+											return func.call(_this4);
+										});
+									});
 								}
 							} else if (index === undefined || key1 <= index) {
-								rekanva.target.to(Object.assign({}, _this3._getInitState(rekanva.attrs, rekanva.converter), { duration: -1 }));
-								rekanva.onReset && rekanva.onReset();
+								_this4._to(rekanva.target, Object.assign({}, _this4._getInitState(rekanva.attrs, rekanva.converter)));
+								// rekanva.onReset.map(func => func.call(this));
+								resetQueue.unshift(function () {
+									rekanva.onReset.map(function (func) {
+										return func.call(_this4);
+									});
+								});
 							} else {
 								return;
 							}
@@ -371,18 +554,28 @@ var Rekanva = exports.Rekanva = function () {
 				default:
 					this.queue.map(function (item) {
 						item.map(function (rekanva) {
-							rekanva.target.to(Object.assign({}, _this3._getInitState(rekanva.attrs, rekanva.converter), { duration: -1 }));
-							rekanva.onReset && rekanva.onReset();
+							_this4._to(rekanva.target, Object.assign({}, _this4._getInitState(rekanva.attrs, rekanva.converter)));
+							// rekanva.onReset.map(func => func.call(this));
+							resetQueue.unshift(function () {
+								rekanva.onReset.map(function (func) {
+									return func.call(_this4);
+								});
+							});
 						});
 					});
 					break;
 			}
+
+			// 执行所有回调函数
+			resetQueue.map(function (func) {
+				return func();
+			});
 			this.state = 'init';
 		}
 	}, {
 		key: 'end',
 		value: function end() {
-			var _this4 = this;
+			var _this5 = this;
 
 			switch (this.state) {
 				case 'playing':
@@ -399,26 +592,46 @@ var Rekanva = exports.Rekanva = function () {
 									rekapi.off('stop');
 									rekapi.stop();
 									// 重新绑定
-									rekanva.onStop && rekapi.on('stop', rekanva.onStop);
-									item[key1 + 1] && rekapi.on('stop', function () {
-										item[key1 + 1].map(function (nextRekanva) {
+									rekapi.on('stop', function () {
+										rekanva.onStop.map(function (func) {
+											return func.call(_this5);
+										});
+									});
+									_this5.queue[key1 + 1] && rekapi.on('stop', function () {
+										_this5.queue[key1 + 1].map(function (nextRekanva) {
 											return nextRekanva.rekapi.play(1);
 										});
 									});
 									// 更新target到end状态
-									rekanva.target.to(Object.assign({}, _this4._getEndState(rekanva.attrs, rekanva.converter), { duration: -1 }));
+									// rekanva.target.to(Object.assign({}, this._getEndState(rekanva.attrs, rekanva.converter), { duration: -1 }));
+									_this5._to(rekanva.target, Object.assign({}, _this5._getEndState(rekanva.attrs, rekanva.converter)));
+									// rekanva.target.setAttrs(Object.assign({}, this._getEndState(rekanva.attrs, rekanva.converter)));
 									// 触发traget的onEnd事件
-									rekanva.onEnd && rekanva.onEnd();
+									rekanva.onEnd.map(function (func) {
+										return func.call(_this5);
+									});
 								} else {
 									rekapi.off('stop');
 									rekapi.stop();
-									rekanva.onStop && rekapi.on('stop', rekanva.onStop);
-									rekanva.target.to(Object.assign({}, _this4._getEndState(rekanva.attrs, rekanva.converter), { duration: -1 }));
-									rekanva.onEnd && rekanva.onEnd();
+									rekapi.on('stop', function () {
+										rekanva.onStop.map(function (func) {
+											return func.call(_this5);
+										});
+									});
+									// rekanva.target.to(Object.assign({}, this._getEndState(rekanva.attrs, rekanva.converter), { duration: -1 }));
+									_this5._to(rekanva.target, Object.assign({}, _this5._getEndState(rekanva.attrs, rekanva.converter)));
+									// rekanva.target.setAttrs(Object.assign({}, this._getEndState(rekanva.attrs, rekanva.converter)));
+									rekanva.onEnd.map(function (func) {
+										return func.call(_this5);
+									});
 								}
 							} else if (index !== undefined && key1 >= index) {
-								rekanva.target.to(Object.assign({}, _this4._getEndState(rekanva.attrs, rekanva.converter), { duration: -1 }));
-								rekanva.onEnd && rekanva.onEnd();
+								// rekanva.target.to(Object.assign({}, this._getEndState(rekanva.attrs, rekanva.converter), { duration: -1 }));
+								_this5._to(rekanva.target, Object.assign({}, _this5._getEndState(rekanva.attrs, rekanva.converter)));
+								// rekanva.target.setAttrs(Object.assign({}, this._getEndState(rekanva.attrs, rekanva.converter)));
+								rekanva.onEnd.map(function (func) {
+									return func.call(_this5);
+								});
 							} else {
 								return;
 							}
@@ -429,8 +642,12 @@ var Rekanva = exports.Rekanva = function () {
 				case 'init':
 					this.queue.map(function (item) {
 						item.map(function (rekanva) {
-							rekanva.target.to(Object.assign({}, _this4._getEndState(rekanva.attrs, rekanva.converter), { duration: -1 }));
-							rekanva.onEnd && rekanva.onEnd();
+							// rekanva.target.to(Object.assign({}, this._getEndState(rekanva.attrs, rekanva.converter), { duration: -1 }));
+							_this5._to(rekanva.target, Object.assign({}, _this5._getEndState(rekanva.attrs, rekanva.converter)));
+							// rekanva.target.setAttrs(Object.assign({}, this._getEndState(rekanva.attrs, rekanva.converter)));
+							rekanva.onEnd.map(function (func) {
+								return func.call(_this5);
+							});
 						});
 					});
 					break;
@@ -460,6 +677,11 @@ var Rekanva = exports.Rekanva = function () {
 					case 'scaleY':
 					case 'width':
 					case 'height':
+					case 'clipX':
+					case 'clipY':
+					case 'clipHeight':
+					case 'clipWidth':
+					case 'opacity':
 						state[key] = converter[key];
 						break;
 
@@ -476,21 +698,20 @@ var Rekanva = exports.Rekanva = function () {
 	}, {
 		key: '_combineTimeline',
 		value: function _combineTimeline(lastTimeline, nextTimeline) {
-			var _this5 = this;
+			var _this6 = this;
 
 			var lastTrackNames = lastTimeline.trackNames;
 			var nextTrackNames = nextTimeline.trackNames;
-
 			lastTrackNames.map(function (name) {
 				var key = name.split('&')[0];
 				var index = nextTrackNames.indexOf(key);
 				if (index !== -1) {
-					nextTimeline.trackNames.splice(index, 1, key + '&' + _this5.id);
+					nextTimeline.trackNames.splice(index, 1, key + '&' + _this6.id);
 					var propertyTrack = nextTimeline.propertyTracks[key];
 					delete nextTimeline.propertyTracks[key];
-					nextTimeline.propertyTracks[key + '&' + _this5.id] = propertyTrack;
-					nextTimeline.propertyTracks[key + '&' + _this5.id].map(function (item) {
-						item.name = key + '&' + _this5.id;
+					nextTimeline.propertyTracks[key + '&' + _this6.id] = propertyTrack;
+					nextTimeline.propertyTracks[key + '&' + _this6.id].map(function (item) {
+						item.name = key + '&' + _this6.id;
 					});
 				}
 			});
@@ -513,7 +734,7 @@ var Rekanva = exports.Rekanva = function () {
 	}, {
 		key: 'combine',
 		value: function combine(options) {
-			var _this6 = this;
+			var _this7 = this;
 
 			var _options$target = options.target,
 			    target = _options$target === undefined ? this.target : _options$target,
@@ -521,29 +742,60 @@ var Rekanva = exports.Rekanva = function () {
 			    duration = _options$duration2 === undefined ? this.duration : _options$duration2,
 			    _options$easing2 = options.easing,
 			    easing = _options$easing2 === undefined ? this.easing : _options$easing2,
-			    props = _objectWithoutProperties(options, ['target', 'duration', 'easing']);
+			    onPlay = options.onPlay,
+			    onStop = options.onStop,
+			    onEnd = options.onEnd,
+			    onReset = options.onReset,
+			    onPause = options.onPause,
+			    props = _objectWithoutProperties(options, ['target', 'duration', 'easing', 'onPlay', 'onStop', 'onEnd', 'onReset', 'onPause']);
 
 			if (target === this.target) {
+
+				// 增加自身的事件
+				this._isFunction(onStop) && this.onStop.push(onStop);
+				this._isFunction(onPlay) && this.onPlay.push(onPlay);
+				this._isFunction(onPause) && this.onPause.push(onPause);
+				this._isFunction(onEnd) && this.onEnd.push(onEnd);
+				this._isFunction(onReset) && this.onReset.onReset(onReset);
+
 				this.id = this._getHash();
 				this.duration = duration;
 				this.easing = easing;
 
-				if (props.path) {
-					var path = props.path,
-					    others = _objectWithoutProperties(props, ['path']);
+				var path = props.path,
+				    timeline = props.timeline,
+				    base = _objectWithoutProperties(props, ['path', 'timeline']);
 
-					this.converter = this._toConvert(others);
+				this.converter = this._toConvert(base);
+				if (path) {
 					this.pathTimeline = path(this.duration, this.attrs.x, this.attrs.y);
 				} else {
-					this.converter = this._toConvert(props);
+					this.pathTimeline = null;
 				}
+				if (timeline) {
+					this.specialTimeline = this._addSpecialTimeline(timeline);
+				} else {
+					this.specialTimeline = null;
+				}
+
+				// if (props.path) {
+				// 	const { path, ...others } = props;
+				// 	this.converter = this._toConvert(others);
+				// 	this.pathTimeline = path(this.duration, this.attrs.x, this.attrs.y);
+				// } else {
+				// 	this.pathTimeline = null;
+				// 	this.converter = this._toConvert(props);
+				// }
 
 				this.rekapi.removeActor(this.actor);
 
 				var nextTimeline = function () {
 					var actor = new _rekapi.Actor();
-					actor.importTimeline(_this6._addTimeline(_this6.converter));
-					_this6.pathTimeline && actor.importTimeline(_this6.pathTimeline);
+					actor.importTimeline(_this7._addTimeline(_this7.converter));
+
+					_this7.pathTimeline && actor.importTimeline(_this7.pathTimeline);
+					_this7.specialTimeline && actor.importTimeline(_this7.specialTimeline);
+
 					return actor.exportTimeline();
 				}();
 
@@ -590,13 +842,16 @@ function Path(path) {
 		var actor = new _rekapi.Actor();
 		var curLength = 0; // 当前长度
 
+		// 如果能从path中拿到所有的路径坐标，而不是在遍历中一个一个地getPointAtLength，
+		// 那么这边的计算速度会大大提升
+		// getPointSetFromPath(path)
+
 		for (var time = 0; time <= count; time++) {
 			var x = parseInt(pathElement.getPointAtLength(curLength).x);
 			var y = parseInt(pathElement.getPointAtLength(curLength).y);
 			actor.keyframe(time * (1000 / 60), { x: x, y: y });
 			curLength += step;
 		}
-
 		return actor.exportTimeline();
 	};
 }
@@ -605,7 +860,7 @@ function Path(path) {
 /* 1 */
 /***/ (function(module, exports, __webpack_require__) {
 
-/*! 2.0.2 */
+/*! 2.0.6 */
 (function webpackUniversalModuleDefinition(root, factory) {
 	if(true)
 		module.exports = factory();
@@ -772,6 +1027,7 @@ var isAnimationComplete = exports.isAnimationComplete = function isAnimationComp
  * Stops the animation if it is complete.
  * @param {Rekapi} rekapi
  * @param {number} currentLoopIteration
+ * @fires rekapi.animationComplete
  */
 var updatePlayState = exports.updatePlayState = function updatePlayState(rekapi, currentLoopIteration) {
   if (isAnimationComplete(rekapi, currentLoopIteration)) {
@@ -800,6 +1056,7 @@ var calculateLoopPosition = exports.calculateLoopPosition = function calculateLo
  * iterations the animation runs for.
  * @param {Rekapi} rekapi
  * @param {number} forMillisecond
+ * @fires rekapi.animationLooped
  */
 var updateToMillisecond = exports.updateToMillisecond = function updateToMillisecond(rekapi, forMillisecond) {
   var currentIteration = determineCurrentLoopIteration(rekapi, forMillisecond);
@@ -810,23 +1067,21 @@ var updateToMillisecond = exports.updateToMillisecond = function updateToMillise
   var keyframeResetList = [];
 
   if (currentIteration > rekapi._latestIteration) {
-    (function () {
-      fireEvent(rekapi, 'animationLooped');
+    fireEvent(rekapi, 'animationLooped');
 
-      // Reset function keyframes
-      var lookupObject = { name: 'function' };
+    // Reset function keyframes
+    var lookupObject = { name: 'function' };
 
-      rekapi._actors.forEach(function (actor) {
-        var fnKeyframes = _lodash2.default.where(actor._keyframeProperties, lookupObject);
-        var lastFnKeyframe = _lodash2.default.last(fnKeyframes);
+    rekapi._actors.forEach(function (actor) {
+      var fnKeyframes = _lodash2.default.where(actor._keyframeProperties, lookupObject);
+      var lastFnKeyframe = _lodash2.default.last(fnKeyframes);
 
-        if (lastFnKeyframe && !lastFnKeyframe.hasFired) {
-          lastFnKeyframe.invoke();
-        }
+      if (lastFnKeyframe && !lastFnKeyframe.hasFired) {
+        lastFnKeyframe.invoke();
+      }
 
-        keyframeResetList = keyframeResetList.concat(fnKeyframes);
-      });
-    })();
+      keyframeResetList = keyframeResetList.concat(fnKeyframes);
+    });
   }
 
   rekapi._latestIteration = currentIteration;
@@ -1035,6 +1290,7 @@ var Rekapi = exports.Rekapi = function () {
    * the constructor parameters for a new {@link rekapi.Actor} instance that
    * is created by this method.
    * @return {rekapi.Actor} The {@link rekapi.Actor} that was added.
+   * @fires rekapi.addActor
    */
 
 
@@ -1124,6 +1380,7 @@ var Rekapi = exports.Rekapi = function () {
      * @method rekapi.Rekapi#removeActor
      * @param {rekapi.Actor} actor
      * @return {rekapi.Actor} The {@link rekapi.Actor} that was removed.
+     * @fires rekapi.removeActor
      */
 
   }, {
@@ -1165,6 +1422,8 @@ var Rekapi = exports.Rekapi = function () {
      * @param {number} [iterations=-1] If omitted, the animation will loop
      * endlessly.
      * @return {rekapi.Rekapi}
+     * @fires rekapi.playStateChange
+     * @fires rekapi.play
      */
 
   }, {
@@ -1239,6 +1498,8 @@ var Rekapi = exports.Rekapi = function () {
      *
      * @method rekapi.Rekapi#pause
      * @return {rekapi.Rekapi}
+     * @fires rekapi.playStateChange
+     * @fires rekapi.pause
      */
 
   }, {
@@ -1264,6 +1525,8 @@ var Rekapi = exports.Rekapi = function () {
      *
      * @method rekapi.Rekapi#stop
      * @return {rekapi.Rekapi}
+     * @fires rekapi.playStateChange
+     * @fires rekapi.stop
      */
 
   }, {
@@ -1331,6 +1594,8 @@ var Rekapi = exports.Rekapi = function () {
      * This is a low-level feature, it should not be `true` (or even provided)
      * for most use cases.
      * @return {rekapi.Rekapi}
+     * @fires rekapi.beforeUpdate
+     * @fires rekapi.afterUpdate
      */
 
   }, {
@@ -1403,56 +1668,7 @@ var Rekapi = exports.Rekapi = function () {
     /**
      * Bind a {@link rekapi.eventHandler} function to a Rekapi event.
      * @method rekapi.Rekapi#on
-     * @param {string} eventName Valid values are:
-     *
-     * - `"animationComplete"`: Fires when all animation loops have completed.
-     * - `"playStateChange"`: Fires when the animation is played, paused, or
-     *   stopped.
-     * - `"play"`: Fires when the animation is {@link rekapi.Rekapi#play}ed.
-     * - `"pause"`: Fires when the animation is {@link rekapi.Rekapi#pause}d.
-     * - `"stop"`: Fires when the animation is {@link rekapi.Rekapi#stop}ped.
-     * - `"beforeUpdate"`: Fires each frame before all actors are rendered.
-     * - `"afterUpdate"`: Fires each frame after all actors are rendered.
-     * - `"addActor"`: Fires when an actor is added.  `data` is the
-     *   {@link rekapi.Actor} that was added.
-     * - `"removeActor"`: Fires when an actor is removed.  `data` is the {@link
-     *   rekapi.Actor} that was removed.
-     * - `"beforeAddKeyframeProperty"`: Fires just before the point where a
-     *   {@link rekapi.KeyframeProperty} is added to the timeline.  This event is
-     *   called before any modifications to the timeline are done.
-     * - `"addKeyframeProperty"`: Fires when a keyframe property is added.
-     *   `data` is the {@link rekapi.KeyframeProperty} that was added.
-     * - `"beforeRemoveKeyframeProperty"`: Fires just before the point where a
-     *   {@link rekapi.KeyframeProperty} is removed.  This
-     *   event is called before any modifications to the timeline are done.
-     * - `"removeKeyframeProperty"`: Fires when a {@link rekapi.KeyframeProperty}
-     *   is removed.  This event is fired _before_ the internal state of the
-     *   keyframe (but not the timeline, in contrast to the
-     *   `beforeRemoveKeyframeProperty` event) has been updated to reflect the
-     *   keyframe property removal (this is in contrast to
-     *   `removeKeyframePropertyComplete`).  `data` is the {@link
-     *   rekapi.KeyframeProperty} that was removed.
-     * - `"removeKeyframePropertyComplete"`: Fires when a {@link
-     *   rekapi.KeyframeProperty} has finished being removed from the timeline.
-     *   Unlike `removeKeyframeProperty`, this is fired _after_ the internal
-     *   state of Rekapi has been updated to reflect the removal of the keyframe
-     *   property. `data` is the {@link rekapi.KeyframeProperty} that was
-     *   removed.
-     * - `"addKeyframePropertyTrack"`: Fires when the a keyframe is added to an
-     *   actor that creates a new keyframe property track.  `data` is the {@link
-     *   rekapi.KeyframeProperty} that was added to create the property track.  A
-     *   reference to the actor that the keyframe property is associated with can
-     *   be accessed via `data.actor` and the track name that was added can be
-     *   determined via `data.name`.
-     * - `"removeKeyframePropertyTrack"`: Fires when the last keyframe property
-     *   in an actor's keyframe property track is removed.  Rekapi automatically
-     *   removes property tracks when they are emptied out, which causes this
-     *   event to be fired.  `data` is the name of the track that was
-     *   removed.
-     * - `"timelineModified"`: Fires when a keyframe is added, modified or
-     *   removed.
-     * - `"animationLooped"`: Fires when an animation loop ends and a new one
-     *   begins.
+     * @param {string} eventName
      * @param {rekapi.eventHandler} handler The event handler function.
      * @return {rekapi.Rekapi}
      */
@@ -1477,6 +1693,7 @@ var Rekapi = exports.Rekapi = function () {
      * rekapi.eventHandler}s.
      * @method rekapi.Rekapi#trigger
      * @return {rekapi.Rekapi}
+     * @fires *
      */
 
   }, {
@@ -1514,7 +1731,7 @@ var Rekapi = exports.Rekapi = function () {
      * Export the timeline to a `JSON.stringify`-friendly `Object`.
      *
      * @method rekapi.Rekapi#exportTimeline
-     * @return {Object} This data can later be consumed by {@link
+     * @return {rekapi.timelineData} This data can later be consumed by {@link
      * rekapi.Rekapi#importTimeline}.
      */
 
@@ -1549,8 +1766,8 @@ var Rekapi = exports.Rekapi = function () {
      * example) and later recreating an identical animation.
      *
      * @method rekapi.Rekapi#importTimeline
-     * @param {Object} rekapiData Any object that has the same data format as the
-     * object generated from {@link rekapi.Rekapi#exportTimeline}.
+     * @param {rekapi.timelineData} rekapiData Any object that has the same data
+     * format as the object generated from {@link rekapi.Rekapi#exportTimeline}.
      */
 
   }, {
@@ -8371,7 +8588,7 @@ var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol
 
 var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol" ? function (obj) { return typeof obj; } : function (obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; };
 
-/*! 2.1.2 */
+/*! 2.1.1 */
 !function (t, e) {
   "object" == ( false ? "undefined" : _typeof(exports)) && "object" == ( false ? "undefined" : _typeof(module)) ? module.exports = e() :  true ? !(__WEBPACK_AMD_DEFINE_ARRAY__ = [], __WEBPACK_AMD_DEFINE_FACTORY__ = (e),
 				__WEBPACK_AMD_DEFINE_RESULT__ = (typeof __WEBPACK_AMD_DEFINE_FACTORY__ === 'function' ?
@@ -8393,21 +8610,17 @@ var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol
       };return e.d(n, "a", n), n;
     }, e.o = function (t, e) {
       return Object.prototype.hasOwnProperty.call(t, e);
-    }, e.p = "/assets/", e(e.s = 6);
+    }, e.p = "/assets/", e(e.s = 7);
   }([function (t, e, n) {
     "use strict";
     (function (t) {
-      function r(t) {
-        if (t && t.__esModule) return t;var e = {};if (null != t) for (var n in t) {
-          Object.prototype.hasOwnProperty.call(t, n) && (e[n] = t[n]);
-        }return e.default = t, e;
-      }function i(t, e) {
+      function r(t, e) {
         if (!(t instanceof e)) throw new TypeError("Cannot call a class as a function");
-      }function o() {
+      }function i() {
         var t = arguments.length > 0 && void 0 !== arguments[0] ? arguments[0] : {},
-            e = new M(),
+            e = new g(),
             n = e.tween(t);return n.tweenable = e, n;
-      }Object.defineProperty(e, "__esModule", { value: !0 }), e.Tweenable = e.composeEasingObject = e.tweenProps = e.clone = e.each = void 0;var u = function () {
+      }Object.defineProperty(e, "__esModule", { value: !0 }), e.Tweenable = e.composeEasingObject = e.tweenProps = e.clone = e.each = void 0;var o = function () {
         function t(t, e) {
           for (var n = 0; n < e.length; n++) {
             var r = e[n];r.enumerable = r.enumerable || !1, r.configurable = !0, "value" in r && (r.writable = !0), Object.defineProperty(t, r.key, r);
@@ -8416,54 +8629,56 @@ var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol
           return n && t(e.prototype, n), r && t(e, r), e;
         };
       }(),
-          a = "function" == typeof Symbol && "symbol" == _typeof(Symbol.iterator) ? function (t) {
+          u = "function" == typeof Symbol && "symbol" == _typeof(Symbol.iterator) ? function (t) {
         return typeof t === "undefined" ? "undefined" : _typeof(t);
       } : function (t) {
         return t && "function" == typeof Symbol && t.constructor === Symbol && t !== Symbol.prototype ? "symbol" : typeof t === "undefined" ? "undefined" : _typeof(t);
-      };e.tween = o;var c = n(5),
-          s = r(c),
-          f = n(1),
-          h = function (t) {
+      };e.tween = i;var a = n(6),
+          s = function (t) {
+        if (t && t.__esModule) return t;var e = {};if (null != t) for (var n in t) {
+          Object.prototype.hasOwnProperty.call(t, n) && (e[n] = t[n]);
+        }return e.default = t, e;
+      }(a),
+          c = n(1),
+          f = function (t) {
         return t && t.__esModule ? t : { default: t };
-      }(f),
-          l = n(7),
-          p = r(l),
-          d = "undefined" != typeof window ? window : t,
-          m = d.requestAnimationFrame || d.webkitRequestAnimationFrame || d.oRequestAnimationFrame || d.msRequestAnimationFrame || d.mozCancelRequestAnimationFrame && d.mozRequestAnimationFrame || setTimeout,
-          _ = function _() {},
-          v = e.each = function (t, e) {
+      }(c),
+          h = "undefined" != typeof window ? window : t,
+          l = h.requestAnimationFrame || h.webkitRequestAnimationFrame || h.oRequestAnimationFrame || h.msRequestAnimationFrame || h.mozCancelRequestAnimationFrame && h.mozRequestAnimationFrame || setTimeout,
+          p = function p() {},
+          d = e.each = function (t, e) {
         Object.keys(t).forEach(e);
       },
-          y = e.clone = function (t) {
-        return (0, h.default)({}, t);
+          m = e.clone = function (t) {
+        return (0, f.default)({}, t);
       },
-          w = y(s),
-          g = function g(t, e, n, r) {
+          _ = m(s),
+          v = function v(t, e, n, r) {
         return t + (e - t) * n(r);
       },
-          b = e.tweenProps = function (t, e, n, r, i, o, u) {
-        var a = t < o ? 0 : (t - o) / i;return v(e, function (t) {
+          y = e.tweenProps = function (t, e, n, r, i, o, u) {
+        var a = t < o ? 0 : (t - o) / i;return d(e, function (t) {
           var i = u[t],
-              o = "function" == typeof i ? i : w[i];e[t] = g(n[t], r[t], o, a);
+              o = "function" == typeof i ? i : _[i];e[t] = v(n[t], r[t], o, a);
         }), e;
       },
-          O = e.composeEasingObject = function (t) {
+          w = e.composeEasingObject = function (t) {
         var e = arguments.length > 1 && void 0 !== arguments[1] ? arguments[1] : "linear",
             n = {},
-            r = void 0 === e ? "undefined" : a(e);return "string" === r || "function" === r ? v(t, function (t) {
+            r = void 0 === e ? "undefined" : u(e);return "string" === r || "function" === r ? d(t, function (t) {
           return n[t] = e;
-        }) : v(t, function (t) {
+        }) : d(t, function (t) {
           return n[t] = n[t] || e[t] || "linear";
         }), n;
       },
-          M = e.Tweenable = function () {
+          g = e.Tweenable = function () {
         function t() {
           var e = arguments.length > 0 && void 0 !== arguments[0] ? arguments[0] : {},
-              n = arguments.length > 1 && void 0 !== arguments[1] ? arguments[1] : void 0;i(this, t), this._currentState = e, this._configured = !1, this._scheduleFunction = m, void 0 !== n && this.setConfig(n);
-        }return u(t, [{ key: "_applyFilter", value: function value(e) {
+              n = arguments.length > 1 && void 0 !== arguments[1] ? arguments[1] : void 0;r(this, t), this._currentState = e, this._configured = !1, this._scheduleFunction = l, void 0 !== n && this.setConfig(n);
+        }return o(t, [{ key: "_applyFilter", value: function value(e) {
             var n = this,
                 r = t.filters,
-                i = this._filterArgs;v(r, function (t) {
+                i = this._filterArgs;d(r, function (t) {
               var o = r[t][e];void 0 !== o && o.apply(n, i);
             });
           } }, { key: "_timeoutHandler", value: function value(e) {
@@ -8473,23 +8688,23 @@ var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol
                 o = this._currentState,
                 u = this._timestamp,
                 a = this._duration,
-                c = this._targetState,
-                s = this._step,
+                s = this._targetState,
+                c = this._step,
                 f = u + i + a,
-                h = Math.min(e || t.now(), f),
-                l = h >= f,
-                p = a - (f - h);this.isPlaying() && (l ? (s(c, this._attachment, p), this.stop(!0)) : (this._scheduleId = this._scheduleFunction.call(d, function () {
+                l = Math.min(e || t.now(), f),
+                p = l >= f,
+                d = a - (f - l);this.isPlaying() && (p ? (c(s, this._attachment, d), this.stop(!0)) : (this._scheduleId = this._scheduleFunction.call(h, function () {
               return n._timeoutHandler.apply(n, r);
-            }, 1e3 / 60), this._applyFilter("beforeTween"), h < u + i ? (h = 1, a = 1, u = 1) : u += i, b(h, o, this._originalState, c, a, u, this._easing), this._applyFilter("afterTween"), s(o, this._attachment, p)));
+            }, 1e3 / 60), this._applyFilter("beforeTween"), l < u + i ? (l = 1, a = 1, u = 1) : u += i, y(l, o, this._originalState, s, a, u, this._easing), this._applyFilter("afterTween"), c(o, this._attachment, d)));
           } }, { key: "tween", value: function value() {
             var e = arguments.length > 0 && void 0 !== arguments[0] ? arguments[0] : void 0;return this._isTweening ? this : (void 0 === e && this._configured || this.setConfig(e), this._timestamp = t.now(), this._start(this.get(), this._attachment), this.resume());
           } }, { key: "setConfig", value: function value() {
             var t = this,
-                e = arguments.length > 0 && void 0 !== arguments[0] ? arguments[0] : {};this._configured = !0, this._attachment = e.attachment, (0, h.default)(this, { _pausedAtTime: null, _scheduleId: null, _delay: e.delay || 0, _start: e.start || _, _step: e.step || _, _duration: e.duration || 500, _currentState: y(e.from || this.get()) }), (0, h.default)(this, { _originalState: this.get(), _targetState: y(e.to || this.get()) });var n = this._currentState;this._targetState = (0, h.default)({}, n, this._targetState), this._easing = O(n, e.easing), this._filterArgs = [n, this._originalState, this._targetState, this._easing], this._applyFilter("tweenCreated");var r = e.promise || Promise;return this._promise = new r(function (e, n) {
+                e = arguments.length > 0 && void 0 !== arguments[0] ? arguments[0] : {};this._configured = !0, this._attachment = e.attachment, (0, f.default)(this, { _pausedAtTime: null, _scheduleId: null, _delay: e.delay || 0, _start: e.start || p, _step: e.step || p, _duration: e.duration || 500, _currentState: m(e.from || this.get()) }), (0, f.default)(this, { _originalState: this.get(), _targetState: m(e.to || this.get()) });var n = this._currentState;this._targetState = (0, f.default)({}, n, this._targetState), this._easing = w(n, e.easing), this._filterArgs = [n, this._originalState, this._targetState, this._easing], this._applyFilter("tweenCreated");var r = e.promise || Promise;return this._promise = new r(function (e, n) {
               t._resolve = e, t._reject = n;
-            }), this._promise.catch(_), this;
+            }), this._promise.catch(p), this;
           } }, { key: "get", value: function value() {
-            return y(this._currentState);
+            return m(this._currentState);
           } }, { key: "set", value: function value(t) {
             this._currentState = t;
           } }, { key: "pause", value: function value() {
@@ -8498,21 +8713,21 @@ var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol
             return this._isPaused && (this._timestamp += t.now() - this._pausedAtTime), this._isPaused = !1, this._isTweening = !0, this._timeoutHandler(), this._promise;
           } }, { key: "seek", value: function value(e) {
             e = Math.max(e, 0);var n = t.now();return this._timestamp + e === 0 ? this : (this._timestamp = n - e, this.isPlaying() || (this._isTweening = !0, this._isPaused = !1, this._timeoutHandler(n), this.pause()), this);
-          } }, { key: "stop", value: function value() {
-            var t = arguments.length > 0 && void 0 !== arguments[0] && arguments[0];return this._isTweening = !1, this._isPaused = !1, (d.cancelAnimationFrame || d.webkitCancelAnimationFrame || d.oCancelAnimationFrame || d.msCancelAnimationFrame || d.mozCancelRequestAnimationFrame || d.clearTimeout)(this._scheduleId), t ? (this._applyFilter("beforeTween"), b(1, this._currentState, this._originalState, this._targetState, 1, 0, this._easing), this._applyFilter("afterTween"), this._applyFilter("afterTweenEnd"), this._resolve(this._currentState, this._attachment)) : this._reject(this._currentState, this._attachment), this;
+          } }, { key: "stop", value: function value(t) {
+            return this._isTweening = !1, this._isPaused = !1, (h.cancelAnimationFrame || h.webkitCancelAnimationFrame || h.oCancelAnimationFrame || h.msCancelAnimationFrame || h.mozCancelRequestAnimationFrame || h.clearTimeout)(this._scheduleId), t ? (this._applyFilter("beforeTween"), y(1, this._currentState, this._originalState, this._targetState, 1, 0, this._easing), this._applyFilter("afterTween"), this._applyFilter("afterTweenEnd"), this._resolve(this._currentState, this._attachment)) : this._reject(this._currentState, this._attachment), this;
           } }, { key: "isPlaying", value: function value() {
             return this._isTweening && !this._isPaused;
           } }, { key: "setScheduleFunction", value: function value(t) {
             this._scheduleFunction = t;
           } }, { key: "dispose", value: function value() {
-            var t = this;v(this, function (e) {
+            var t = this;d(this, function (e) {
               return delete t[e];
             });
           } }]), t;
-      }();(0, h.default)(M, { formulas: w, filters: { token: p }, now: Date.now || function (t) {
+      }();(0, f.default)(g, { formulas: _, filters: {}, now: Date.now || function (t) {
           return +new Date();
         } });
-    }).call(e, n(4));
+    }).call(e, n(5));
   }, function (t, e, n) {
     "use strict";
     function r(t) {
@@ -8532,33 +8747,33 @@ var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol
         return !1;
       }
     }() ? Object.assign : function (t, e) {
-      for (var n, a, c = r(t), s = 1; s < arguments.length; s++) {
-        n = Object(arguments[s]);for (var f in n) {
-          o.call(n, f) && (c[f] = n[f]);
+      for (var n, a, s = r(t), c = 1; c < arguments.length; c++) {
+        n = Object(arguments[c]);for (var f in n) {
+          o.call(n, f) && (s[f] = n[f]);
         }if (i) {
           a = i(n);for (var h = 0; h < a.length; h++) {
-            u.call(n, a[h]) && (c[a[h]] = n[a[h]]);
+            u.call(n, a[h]) && (s[a[h]] = n[a[h]]);
           }
         }
-      }return c;
+      }return s;
     };
   }, function (t, e, n) {
     "use strict";
     function r(t, e, n, r, i, o) {
       var u = 0,
           a = 0,
-          c = 0,
           s = 0,
+          c = 0,
           f = 0,
           h = 0,
           l = function l(t) {
-        return ((u * t + a) * t + c) * t;
+        return ((u * t + a) * t + s) * t;
       },
           p = function p(t) {
-        return ((s * t + f) * t + h) * t;
+        return ((c * t + f) * t + h) * t;
       },
           d = function d(t) {
-        return (3 * u * t + 2 * a) * t + c;
+        return (3 * u * t + 2 * a) * t + s;
       },
           m = function m(t) {
         return t >= 0 ? t : 0 - t;
@@ -8574,7 +8789,7 @@ var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol
         }if (n = 0, r = 1, (i = t) < n) return n;if (i > r) return r;for (; n < r;) {
           if (o = l(i), m(o - t) < e) return i;t > o ? n = i : r = i, i = .5 * (r - n) + n;
         }return i;
-      };return c = 3 * e, a = 3 * (r - e) - c, u = 1 - c - a, h = 3 * n, f = 3 * (i - n) - h, s = 1 - h - f, function (t, e) {
+      };return s = 3 * e, a = 3 * (r - e) - s, u = 1 - s - a, h = 3 * n, f = 3 * (i - n) - h, c = 1 - h - f, function (t, e) {
         return p(_(t, e));
       }(t, function (t) {
         return 1 / (200 * t);
@@ -8599,7 +8814,120 @@ var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol
         i = new r.Tweenable();i._filterArgs = [];e.interpolate = function (t, e, n, o) {
       var u = arguments.length > 4 && void 0 !== arguments[4] ? arguments[4] : 0,
           a = (0, r.clone)(t),
-          c = (0, r.composeEasingObject)(t, o);i.set({}), i._filterArgs = [a, t, e, c], i._applyFilter("tweenCreated"), i._applyFilter("beforeTween");var s = (0, r.tweenProps)(n, a, t, e, 1, u, c);return i._applyFilter("afterTween"), s;
+          s = (0, r.composeEasingObject)(t, o);i.set({}), i._filterArgs = [a, t, e, s], i._applyFilter("tweenCreated"), i._applyFilter("beforeTween");var c = (0, r.tweenProps)(n, a, t, e, 1, u, s);return i._applyFilter("afterTween"), c;
+    };
+  }, function (t, e, n) {
+    "use strict";
+    function r(t) {
+      return parseInt(t, 16);
+    }function i(t, e, n) {
+      [t, e, n].forEach(_), this._tokenData = g(t);
+    }function o(t, e, n, r) {
+      var i = this._tokenData;S(r, i), [t, e, n].forEach(function (t) {
+        return b(t, i);
+      });
+    }function u(t, e, n, r) {
+      var i = this._tokenData;[t, e, n].forEach(function (t) {
+        return F(t, i);
+      }), k(r, i);
+    }Object.defineProperty(e, "__esModule", { value: !0 }), e.tweenCreated = i, e.beforeTween = o, e.afterTween = u;var a = n(0),
+        s = function () {
+      var t = /[0-9.\-]+/g.source,
+          e = /,\s*/.source;return new RegExp("rgb\\(" + t + e + t + e + t + "\\)", "g");
+    }(),
+        c = /#([0-9]|[a-f]){3,6}/gi,
+        f = function f(t, e) {
+      return t.map(function (t, n) {
+        return "_" + e + "_" + n;
+      });
+    },
+        h = function h(t) {
+      var e = t.match(/([^\-0-9\.]+)/g);return e ? (1 === e.length || t.charAt(0).match(/(\d|\-|\.)/)) && e.unshift("") : e = ["", ""], e.join("VAL");
+    },
+        l = function l(t) {
+      return t = t.replace(/#/, ""), 3 === t.length && (t = t.split(""), t = t[0] + t[0] + t[1] + t[1] + t[2] + t[2]), [r(t.substr(0, 2)), r(t.substr(2, 2)), r(t.substr(4, 2))];
+    },
+        p = function p(t) {
+      return "rgb(" + l(t).join(",") + ")";
+    },
+        d = function d(t, e, n) {
+      var r = e.match(t),
+          i = e.replace(t, "VAL");return r && r.forEach(function (t) {
+        return i = i.replace("VAL", n(t));
+      }), i;
+    },
+        m = function m(t) {
+      return d(c, t, p);
+    },
+        _ = function _(t) {
+      (0, a.each)(t, function (e) {
+        var n = t[e];"string" == typeof n && n.match(c) && (t[e] = m(n));
+      });
+    },
+        v = function v(t) {
+      var e = t.match(/[0-9.\-]+/g).map(Math.floor);return "" + t.match(/^.*\(/)[0] + e.join(",") + ")";
+    },
+        y = function y(t) {
+      return d(s, t, v);
+    },
+        w = function w(t) {
+      return t.match(/[0-9.\-]+/g);
+    },
+        g = function g(t) {
+      var e = {};return (0, a.each)(t, function (n) {
+        var r = t[n];"string" == typeof r && (e[n] = { formatString: h(r), chunkNames: f(w(r), n) });
+      }), e;
+    },
+        b = function b(t, e) {
+      (0, a.each)(e, function (n) {
+        w(t[n]).forEach(function (r, i) {
+          return t[e[n].chunkNames[i]] = +r;
+        }), delete t[n];
+      });
+    },
+        M = function M(t, e) {
+      var n = {};return e.forEach(function (e) {
+        n[e] = t[e], delete t[e];
+      }), n;
+    },
+        O = function O(t, e) {
+      return e.map(function (e) {
+        return t[e];
+      });
+    },
+        j = function j(t, e) {
+      return e.forEach(function (e) {
+        return t = t.replace("VAL", +e.toFixed(4));
+      }), t;
+    },
+        F = function F(t, e) {
+      (0, a.each)(e, function (n) {
+        var r = e[n],
+            i = r.chunkNames,
+            o = r.formatString,
+            u = j(o, O(M(t, i), i));t[n] = y(u);
+      });
+    },
+        S = function S(t, e) {
+      (0, a.each)(e, function (n) {
+        var r = e[n].chunkNames,
+            i = t[n];"string" == typeof i ? function () {
+          var e = i.split(" "),
+              n = e[e.length - 1];r.forEach(function (r, i) {
+            return t[r] = e[i] || n;
+          });
+        }() : r.forEach(function (e) {
+          return t[e] = i;
+        }), delete t[n];
+      });
+    },
+        k = function k(t, e) {
+      (0, a.each)(e, function (n) {
+        var r = e[n].chunkNames,
+            i = (r.length, t[r[0]]);t[n] = "string" == typeof i ? r.map(function (e) {
+          var n = t[e];return delete t[e], n;
+        }).join(" ") : i;
+      });
     };
   }, function (t, e, n) {
     "use strict";
@@ -8690,130 +9018,15 @@ var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol
     };
   }, function (t, e, n) {
     "use strict";
-    Object.defineProperty(e, "__esModule", { value: !0 });var r = n(0);Object.defineProperty(e, "Tweenable", { enumerable: !0, get: function get() {
-        return r.Tweenable;
-      } }), Object.defineProperty(e, "tween", { enumerable: !0, get: function get() {
-        return r.tween;
-      } });var i = n(3);Object.defineProperty(e, "interpolate", { enumerable: !0, get: function get() {
-        return i.interpolate;
-      } });var o = n(2);Object.defineProperty(e, "setBezierFunction", { enumerable: !0, get: function get() {
-        return o.setBezierFunction;
-      } }), Object.defineProperty(e, "unsetBezierFunction", { enumerable: !0, get: function get() {
-        return o.unsetBezierFunction;
-      } });
-  }, function (t, e, n) {
-    "use strict";
-    function r(t) {
-      return parseInt(t, 16);
-    }function i(t, e, n) {
-      [t, e, n].forEach(_), this._tokenData = g(t);
-    }function o(t, e, n, r) {
-      var i = this._tokenData;S(r, i), [t, e, n].forEach(function (t) {
-        return b(t, i);
-      });
-    }function u(t, e, n, r) {
-      var i = this._tokenData;[t, e, n].forEach(function (t) {
-        return F(t, i);
-      }), P(r, i);
-    }Object.defineProperty(e, "__esModule", { value: !0 }), e.tweenCreated = i, e.beforeTween = o, e.afterTween = u;var a = n(0),
-        c = function () {
-      var t = /[0-9.\-]+/g.source,
-          e = /,\s*/.source;return new RegExp("rgb\\(" + t + e + t + e + t + "\\)", "g");
-    }(),
-        s = /#([0-9]|[a-f]){3,6}/gi,
-        f = function f(t, e) {
-      return t.map(function (t, n) {
-        return "_" + e + "_" + n;
-      });
-    },
-        h = function h(t) {
-      var e = t.match(/([^\-0-9\.]+)/g);return e ? (1 === e.length || t.charAt(0).match(/(\d|\-|\.)/)) && e.unshift("") : e = ["", ""], e.join("VAL");
-    },
-        l = function l(t) {
-      return t = t.replace(/#/, ""), 3 === t.length && (t = t.split(""), t = t[0] + t[0] + t[1] + t[1] + t[2] + t[2]), [r(t.substr(0, 2)), r(t.substr(2, 2)), r(t.substr(4, 2))];
-    },
-        p = function p(t) {
-      return "rgb(" + l(t).join(",") + ")";
-    },
-        d = function d(t, e, n) {
-      var r = e.match(t),
-          i = e.replace(t, "VAL");return r && r.forEach(function (t) {
-        return i = i.replace("VAL", n(t));
-      }), i;
-    },
-        m = function m(t) {
-      return d(s, t, p);
-    },
-        _ = function _(t) {
-      (0, a.each)(t, function (e) {
-        var n = t[e];"string" == typeof n && n.match(s) && (t[e] = m(n));
-      });
-    },
-        v = function v(t) {
-      var e = t.match(/[0-9.\-]+/g).map(Math.floor);return "" + t.match(/^.*\(/)[0] + e.join(",") + ")";
-    },
-        y = function y(t) {
-      return d(c, t, v);
-    },
-        w = function w(t) {
-      return t.match(/[0-9.\-]+/g);
-    },
-        g = function g(t) {
-      var e = {};return (0, a.each)(t, function (n) {
-        var r = t[n];"string" == typeof r && (e[n] = { formatString: h(r), chunkNames: f(w(r), n) });
-      }), e;
-    },
-        b = function b(t, e) {
-      (0, a.each)(e, function (n) {
-        w(t[n]).forEach(function (r, i) {
-          return t[e[n].chunkNames[i]] = +r;
-        }), delete t[n];
-      });
-    },
-        O = function O(t, e) {
-      var n = {};return e.forEach(function (e) {
-        n[e] = t[e], delete t[e];
-      }), n;
-    },
-        M = function M(t, e) {
-      return e.map(function (e) {
-        return t[e];
-      });
-    },
-        j = function j(t, e) {
-      return e.forEach(function (e) {
-        return t = t.replace("VAL", +e.toFixed(4));
-      }), t;
-    },
-        F = function F(t, e) {
-      (0, a.each)(e, function (n) {
-        var r = e[n],
-            i = r.chunkNames,
-            o = r.formatString,
-            u = j(o, M(O(t, i), i));t[n] = y(u);
-      });
-    },
-        S = function S(t, e) {
-      (0, a.each)(e, function (n) {
-        var r = e[n].chunkNames,
-            i = t[n];"string" == typeof i ? function () {
-          var e = i.split(" "),
-              n = e[e.length - 1];r.forEach(function (r, i) {
-            return t[r] = e[i] || n;
-          });
-        }() : r.forEach(function (e) {
-          return t[e] = i;
-        }), delete t[n];
-      });
-    },
-        P = function P(t, e) {
-      (0, a.each)(e, function (n) {
-        var r = e[n].chunkNames,
-            i = (r.length, t[r[0]]);t[n] = "string" == typeof i ? r.map(function (e) {
-          var n = t[e];return delete t[e], n;
-        }).join(" ") : i;
-      });
-    };
+    Object.defineProperty(e, "__esModule", { value: !0 }), e.unsetBezierFunction = e.setBezierFunction = e.interpolate = e.tween = e.Tweenable = void 0;var r = n(0),
+        i = n(3),
+        o = n(2),
+        u = n(4),
+        a = function (t) {
+      if (t && t.__esModule) return t;var e = {};if (null != t) for (var n in t) {
+        Object.prototype.hasOwnProperty.call(t, n) && (e[n] = t[n]);
+      }return e.default = t, e;
+    }(u);r.Tweenable.filters.token = a, e.Tweenable = r.Tweenable, e.tween = r.tween, e.interpolate = i.interpolate, e.setBezierFunction = o.setBezierFunction, e.unsetBezierFunction = o.unsetBezierFunction;
   }]);
 });
 //# sourceMappingURL=shifty.js.map
@@ -8998,8 +9211,8 @@ var ensurePropertyCacheValid = function ensurePropertyCacheValid(actor) {
 
 /*!
  * Remove any property tracks that are empty.
- *
  * @param {Actor} actor
+ * @fires rekapi.removeKeyframePropertyTrack
  */
 var removeEmptyPropertyTracks = function removeEmptyPropertyTracks(actor) {
   var _propertyTracks = actor._propertyTracks;
@@ -9034,6 +9247,7 @@ var sortPropertyTracks = function sortPropertyTracks(actor) {
  * modification method is called.
  *
  * @param {Actor} actor
+ * @fires rekapi.timelineModified
  */
 var cleanupAfterKeyframeModification = function cleanupAfterKeyframeModification(actor) {
   sortPropertyTracks(actor);
@@ -9157,6 +9371,7 @@ var Actor = exports.Actor = function (_Tweenable) {
    * @param {(string|Object)} [easing] Optional easing string or Object.  If
    * `state` is a function, this is ignored.
    * @return {rekapi.Actor}
+   * @fires rekapi.timelineModified
    */
 
 
@@ -9362,6 +9577,7 @@ var Actor = exports.Actor = function (_Tweenable) {
      * @param {number} millisecond The location on the timeline of the keyframe
      * to remove.
      * @return {rekapi.Actor}
+     * @fires rekapi.timelineModified
      */
 
   }, {
@@ -9481,6 +9697,8 @@ var Actor = exports.Actor = function (_Tweenable) {
      * rekapi.KeyframeProperty} to remove is.
      * @return {(rekapi.KeyframeProperty|undefined)} The removed
      * KeyframeProperty, if one was found.
+     * @fires rekapi.beforeRemoveKeyframeProperty
+     * @fires rekapi.removeKeyframePropertyComplete
      */
 
   }, {
@@ -9494,13 +9712,13 @@ var Actor = exports.Actor = function (_Tweenable) {
         var index = propertyIndexInTrack(propertyTrack, millisecond);
         var keyframeProperty = propertyTrack[index];
 
-        (0, _rekapi.fireEvent)(this.rekapi, 'beforeRemoveKeyframeProperty', keyframeProperty);
+        fire(this, 'beforeRemoveKeyframeProperty', keyframeProperty);
         this._deleteKeyframePropertyAt(propertyTrack, index);
         keyframeProperty.detach();
 
         removeEmptyPropertyTracks(this);
         cleanupAfterKeyframeModification(this);
-        (0, _rekapi.fireEvent)(this.rekapi, 'removeKeyframePropertyComplete', keyframeProperty);
+        fire(this, 'removeKeyframePropertyComplete', keyframeProperty);
 
         return keyframeProperty;
       }
@@ -9689,13 +9907,16 @@ var Actor = exports.Actor = function (_Tweenable) {
      * @method rekapi.Actor#addKeyframeProperty
      * @param {rekapi.KeyframeProperty} keyframeProperty
      * @return {rekapi.Actor}
+     * @fires rekapi.beforeAddKeyframeProperty
+     * @fires rekapi.addKeyframePropertyTrack
+     * @fires rekapi.addKeyframeProperty
      */
 
   }, {
     key: 'addKeyframeProperty',
     value: function addKeyframeProperty(keyframeProperty) {
       if (this.rekapi) {
-        (0, _rekapi.fireEvent)(this.rekapi, 'beforeAddKeyframeProperty', keyframeProperty);
+        fire(this, 'beforeAddKeyframeProperty', keyframeProperty);
       }
 
       keyframeProperty.actor = this;
@@ -9710,7 +9931,7 @@ var Actor = exports.Actor = function (_Tweenable) {
         _propertyTracks[name] = [keyframeProperty];
 
         if (rekapi) {
-          (0, _rekapi.fireEvent)(rekapi, 'addKeyframePropertyTrack', keyframeProperty);
+          fire(this, 'addKeyframePropertyTrack', keyframeProperty);
         }
       } else {
         var index = insertionPointInTrack(_propertyTracks[name], keyframeProperty.millisecond);
@@ -9731,7 +9952,7 @@ var Actor = exports.Actor = function (_Tweenable) {
       }
 
       if (rekapi) {
-        (0, _rekapi.fireEvent)(rekapi, 'addKeyframeProperty', keyframeProperty);
+        fire(this, 'addKeyframeProperty', keyframeProperty);
       }
 
       return this;
@@ -9860,7 +10081,7 @@ var Actor = exports.Actor = function (_Tweenable) {
     /**
      * Export this {@link rekapi.Actor} to a `JSON.stringify`-friendly `Object`.
      * @method rekapi.Actor#exportTimeline
-     * @return {Object} This data can later be consumed by {@link
+     * @return {rekapi.actorData} This data can later be consumed by {@link
      * rekapi.Actor#importTimeline}.
      */
 
@@ -9890,10 +10111,9 @@ var Actor = exports.Actor = function (_Tweenable) {
     /**
      * Import an Object to augment this actor's state.  This does not remove
      * keyframe properties before importing new ones.
-     *
      * @method rekapi.Actor#importTimeline
-     * @param {Object} actorData Any object that has the same data format as the
-     * object generated from {@link rekapi.Actor#exportTimeline}.
+     * @param {rekapi.actorData} actorData Any object that has the same data
+     * format as the object generated from {@link rekapi.Actor#exportTimeline}.
      */
 
   }, {
@@ -10112,6 +10332,7 @@ var KeyframeProperty = exports.KeyframeProperty = function () {
      * and triggers the [removeKeyframeProperty]{@link rekapi.Rekapi#on} event
      * on the associated {@link rekapi.Rekapi} instance.
      * @method rekapi.KeyframeProperty#detach
+     * @fires rekapi.removeKeyframeProperty
      */
 
   }, {
@@ -10133,7 +10354,7 @@ var KeyframeProperty = exports.KeyframeProperty = function () {
      * Export this {@link rekapi.KeyframeProperty} to a `JSON.stringify`-friendly
      * `Object`.
      * @method rekapi.KeyframeProperty#exportPropertyData
-     * @return {Object}
+     * @return {rekapi.propertyData}
      */
 
   }, {
@@ -10418,8 +10639,6 @@ Object.defineProperty(exports, "__esModule", {
 exports.DOMRenderer = exports.getActorCSS = exports.canOptimizeAnyKeyframeProperties = exports.generateCSSClass = exports.generateCSSAnimationProperties = exports.generateAnimationIterationProperty = exports.generateAnimationNameProperty = exports.generateBoilerplatedKeyframes = exports.generateActorKeyframes = exports.canOptimizeKeyframeProperty = exports.simulateTrailingWait = exports.simulateLeadingWait = exports.generateActorTrackSegment = exports.serializeActorStep = exports.combineTranfromProperties = exports.generateOptimizedKeyframeSegment = exports.applyVendorBoilerplates = exports.applyVendorPropertyPrefixes = exports.VENDOR_TOKEN = exports.TRANSFORM_TOKEN = exports.transformFunctions = undefined;
 
 var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
-
-var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol" ? function (obj) { return typeof obj; } : function (obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; };
 
 var _lodash = __webpack_require__(1);
 
@@ -10774,25 +10993,19 @@ var combineTranfromProperties = exports.combineTranfromProperties = function com
   if (_lodash2.default.isEmpty(_lodash2.default.pick.apply(_lodash2.default, [propsToSerialize].concat(transformFunctions)))) {
     return propsToSerialize;
   } else {
-    var _ret = function () {
-      var serializedProps = _lodash2.default.clone(propsToSerialize);
+    var serializedProps = _lodash2.default.clone(propsToSerialize);
 
-      serializedProps[TRANSFORM_TOKEN] = transformNames.reduce(function (combinedProperties, transformFunction) {
-        if (_lodash2.default.has(serializedProps, transformFunction)) {
-          combinedProperties += ' ' + transformFunction + '(' + serializedProps[transformFunction] + ')';
+    serializedProps[TRANSFORM_TOKEN] = transformNames.reduce(function (combinedProperties, transformFunction) {
+      if (_lodash2.default.has(serializedProps, transformFunction)) {
+        combinedProperties += ' ' + transformFunction + '(' + serializedProps[transformFunction] + ')';
 
-          delete serializedProps[transformFunction];
-        }
+        delete serializedProps[transformFunction];
+      }
 
-        return combinedProperties;
-      }, '').slice(1);
+      return combinedProperties;
+    }, '').slice(1);
 
-      return {
-        v: serializedProps
-      };
-    }();
-
-    if ((typeof _ret === 'undefined' ? 'undefined' : _typeof(_ret)) === "object") return _ret.v;
+    return serializedProps;
   }
 };
 
@@ -11215,6 +11428,7 @@ var DOMRenderer = exports.DOMRenderer = function () {
      * animation.  A higher value results in a more precise CSS animation, but it
      * will take longer to generate.  The default value is `30`.  You should not
      * need to go higher than `60`.
+     * @fires rekapi.play
      */
 
   }, {
@@ -11250,6 +11464,7 @@ var DOMRenderer = exports.DOMRenderer = function () {
      * @param {boolean=} goToEnd If true, skip to the end of the animation.  If
      * false or omitted, set inline styles on the {@link rekapi.Actor} elements
      * to keep them in their current position.
+     * @fires rekapi.stop
      */
 
   }, {

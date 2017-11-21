@@ -56,6 +56,39 @@ var rekanva = new Rekanva({
 
 值得注意的事，无论是```combine```还是```to```，当你未传入```target```时，我们将默认```target```为初始实例化时所设置的target目标。
 
+### **timeline**
+
+react-rekanva提供了一个与css animation很类似的写法: ```timeline```，通过```timeline```我们可以定义目标在不同的进度触发不同的动画
+
+```javascript
+var rekanva = new Rekanva({
+  target: konvaNode,
+  timeline: {
+    '0%': {
+      translateY: 0,
+      opacity: 0,
+      easing: 'easeIn'
+    },
+    '50%': {
+      translateY: -100,
+      opacity: 1,
+      easing: 'easeOut'
+    },
+    '70%': {
+      translateY: 200,
+      opacity: 0,
+      easing: 'easeIn'
+    },
+    '100%': {
+      translateY: -200,
+      opacity: 1,
+      easing: 'easeOut'
+    }
+  },
+  duration: 1000,
+})
+```
+
 ### **属性更新 udpate**
 
 ```update```方法可更新你的动画属性
