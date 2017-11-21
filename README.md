@@ -16,7 +16,7 @@ var rekanva = new Rekanva({
 rekanva.play(); //执行动画
 ```
 
-### **动画合并**
+### **动画合并 combine**
 
 多个动画可通过```combine```方法合并，```target```默认为上一个动画目标，你也可设置为其他目标，若设置为其他目标，当调用```rekanva.play()```后，则变成两个动画同时播放（因为两个动画并不是作用于同一目标）
 
@@ -33,7 +33,7 @@ var rekanva = new Rekanva({
 });
 ```
 
-### **to方法**
+### **动画串联 to**
 
 倘若你想在某个动画执行完毕时触发下一个动画，可使用```to```方法（```to```方法可多次链式调用）
 
@@ -55,6 +55,21 @@ var rekanva = new Rekanva({
 ```
 
 值得注意的事，无论是```combine```还是```to```，当你未传入```target```时，我们将默认```target```为初始实例化时所设置的target目标。
+
+### **属性更新 udpate**
+
+```update```方法可更新你的动画属性
+```javascript
+  var rekanva = new Rekanva({
+  target: konvaNode,
+  translateX: 200,
+  duration: 2000,
+  easing: 'easeOutExpo',
+  onPlay: function() {
+    this.update({ translateX: 300px }) // 实际上动画执行后会向x正方向移动300px
+  }
+})
+```
 
 ### **自定义路径动画**
 
