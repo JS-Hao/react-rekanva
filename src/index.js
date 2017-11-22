@@ -217,10 +217,9 @@ export class Rekanva {
 		this.onEnd.push(func);
 	}
 
+	
+
 	update(data) {
-		// const animData = opt.animData || {};
-		// const initData = opt.initData || {};
-		// const { animData, initData } = opt;
 		const converter = Object.assign({}, this.converter, data);
 		this.attrs = Object.assign({}, this.target.attrs, this.initOpt);
 		this.rekapi.removeActor(this.actor);
@@ -257,24 +256,65 @@ export class Rekanva {
 		return lastItem;
 	}
 
-	play() {
-		this.state = 'playing';
+	push() {
+		const argu = Array.from(arguments);
+		const len = argu.length;
+		if (len === 1) {
+			const rekanva = argu[0];
+			rekanva instanceof Rekanva && this.queue.push(rekanva);
+			// this._updatePlayQueue();
+		} else {
+			const index = (typeof argu[0] === 'number') ? argu[0] : this.queue.length;
+			const rekanva = argu[1];
+			rekanva instanceof Rekanva && this.queue.splice(index, 0, rekanva);
+			// this._updatePlayQueue();
+		}
+	}
 
+	pop(index) {
+		if (index) {
+			this.queue.splice(index, 1);
+			// this._updatePlayQueue();
+		} else {
+			this.queue.pop();
+			// this._updatePlayQueue();
+		}
+	}
+
+	_updateAttrs() {
+		this.attrs = Object.assign({}, this.target.attrs, this.initOpt);
+	}
+
+	_updatePlayQueue() {
 		const reverse = this.queue.concat().reverse();
 		reverse.map((item, key) => {
-			// 当最后一组动画的第一个动画执行完毕后，将状态置为end；
+			// 当最后一组动画的duration最长的动画执行完毕后，将状态置位end
 			if (key === 0) {
 				const lastItem = this.getLastItem(item);
 				lastItem._addEndState(() => {
 					this.state = 'end';
-				});
-			}
-			if (reverse[key + 1]) {
-				reverse[key + 1][0].rekapi.on('stop', () => {
-					reverse[key].map(rekanva => rekanva.rekapi.play(1));
 				})
 			}
-		});
+			if (reverse[key + 1]) {
+				// 解除上一个动画onStop事件的所有事件绑定
+				reverse[key + 1][0].rekapi.off('stop');
+				// 重新绑定
+				reverse[key + 1][0].rekapi.on('stop', () => {
+					reverse[key + 1][0].onStop.map(func => func.call(this));
+				});
+				// 关联前后两个动画
+				reverse[key + 1][0].rekapi.on('stop', () => {
+					reverse[key].map(rekanva => rekanva.rekapi.play(1));
+				});
+				
+			}
+		})
+	}
+
+	play() {
+		this.state = 'playing';
+		this._updateAttrs();
+		this._updatePlayQueue();
 		this.queue[0].map(rekanva => rekanva.rekapi.play(1));
 	}
 

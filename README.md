@@ -2,7 +2,7 @@
 
 react-rekanva.js是一款react-konva的动画插件，它基于rekapi动画库，提供了一系列方法为你更好地组织canvas动画，可制定更为复杂的动画，甚至是实现多个动画的组合。
 
-### 快速开始
+## 快速开始
 
 ```javascript
 import { Rekanva } from './react-rekanva';
@@ -16,7 +16,11 @@ var rekanva = new Rekanva({
 rekanva.play(); //执行动画
 ```
 
-### **动画合并 combine**
+
+
+## 方法
+
+#### **combine**
 
 多个动画可通过```combine```方法合并，```target```默认为上一个动画目标，你也可设置为其他目标，若设置为其他目标，当调用```rekanva.play()```后，则变成两个动画同时播放（因为两个动画并不是作用于同一目标）
 
@@ -33,7 +37,7 @@ var rekanva = new Rekanva({
 });
 ```
 
-### **动画串联 to**
+#### **to**
 
 倘若你想在某个动画执行完毕时触发下一个动画，可使用```to```方法（```to```方法可多次链式调用）
 
@@ -56,7 +60,7 @@ var rekanva = new Rekanva({
 
 值得注意的事，无论是```combine```还是```to```，当你未传入```target```时，我们将默认```target```为初始实例化时所设置的target目标。
 
-### **timeline**
+#### **timeline**
 
 react-rekanva提供了一个与css animation很类似的写法: ```timeline```，通过```timeline```我们可以定义目标在不同的进度触发不同的动画
 
@@ -89,7 +93,7 @@ var rekanva = new Rekanva({
 })
 ```
 
-### **属性更新 udpate**
+#### **udpate**
 
 ```update```方法可更新你的动画属性
 ```javascript
@@ -104,7 +108,23 @@ var rekanva = new Rekanva({
 })
 ```
 
-### **自定义路径动画**
+#### **add & delete**
+
+rekanva之所以能够执行一系列的动画（如上述通过```combine```，```to```方法所串联的动画），是因为rekanva内部存在着动画队列```queue```（实际上可以理解成一个按顺序存放着所有动画实例的数组，每个动画实例依次播放），为了更灵活的管理这个队列，可以通过```add```和```delete```方法增添或删除指定的动画
+
+```javascript
+// add 用法：
+oldRekanva.add(index, newRekanva)  // index为要插入的下标， newRekanva为新的实例
+oldRekanva.add(newRekanva)         // 默认在队列末尾增加新的实例
+
+/* delete用法 */
+oldRekanva.delete(index)           // index为删除实例的下标, 不传着默认删除队列中最后一个实例
+
+```
+
+
+
+## **自定义路径动画**
 
 ```Path```方法可帮助你实现更为复杂的路径动画
 
@@ -118,7 +138,9 @@ var rekanva = new Rekanva({
   duration: 3000
 });
 ```
-### 事件
+
+
+## 事件
 
 react-rekanva支持```onPlay```, ```onPause```, ```onStop```以及```onEnd```事件，你只需要将这些事件函数传入动画配置即可：
 

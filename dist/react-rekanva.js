@@ -332,9 +332,6 @@ var Rekanva = exports.Rekanva = function () {
 	}, {
 		key: 'update',
 		value: function update(data) {
-			// const animData = opt.animData || {};
-			// const initData = opt.initData || {};
-			// const { animData, initData } = opt;
 			var converter = Object.assign({}, this.converter, data);
 			this.attrs = Object.assign({}, this.target.attrs, this.initOpt);
 			this.rekapi.removeActor(this.actor);
@@ -375,15 +372,45 @@ var Rekanva = exports.Rekanva = function () {
 			return lastItem;
 		}
 	}, {
-		key: 'play',
-		value: function play() {
+		key: 'push',
+		value: function push() {
+			var argu = Array.from(arguments);
+			var len = argu.length;
+			if (len === 1) {
+				var rekanva = argu[0];
+				rekanva instanceof Rekanva && this.queue.push(rekanva);
+				// this._updatePlayQueue();
+			} else {
+				var index = typeof argu[0] === 'number' ? argu[0] : this.queue.length;
+				var _rekanva = argu[1];
+				_rekanva instanceof Rekanva && this.queue.splice(index, 0, _rekanva);
+				// this._updatePlayQueue();
+			}
+		}
+	}, {
+		key: 'pop',
+		value: function pop(index) {
+			if (index) {
+				this.queue.splice(index, 1);
+				// this._updatePlayQueue();
+			} else {
+				this.queue.pop();
+				// this._updatePlayQueue();
+			}
+		}
+	}, {
+		key: '_updateAttrs',
+		value: function _updateAttrs() {
+			this.attrs = Object.assign({}, this.target.attrs, this.initOpt);
+		}
+	}, {
+		key: '_updatePlayQueue',
+		value: function _updatePlayQueue() {
 			var _this2 = this;
-
-			this.state = 'playing';
 
 			var reverse = this.queue.concat().reverse();
 			reverse.map(function (item, key) {
-				// 当最后一组动画的第一个动画执行完毕后，将状态置为end；
+				// 当最后一组动画的duration最长的动画执行完毕后，将状态置位end
 				if (key === 0) {
 					var lastItem = _this2.getLastItem(item);
 					lastItem._addEndState(function () {
@@ -391,6 +418,15 @@ var Rekanva = exports.Rekanva = function () {
 					});
 				}
 				if (reverse[key + 1]) {
+					// 解除上一个动画onStop事件的所有事件绑定
+					reverse[key + 1][0].rekapi.off('stop');
+					// 重新绑定
+					reverse[key + 1][0].rekapi.on('stop', function () {
+						reverse[key + 1][0].onStop.map(function (func) {
+							return func.call(_this2);
+						});
+					});
+					// 关联前后两个动画
 					reverse[key + 1][0].rekapi.on('stop', function () {
 						reverse[key].map(function (rekanva) {
 							return rekanva.rekapi.play(1);
@@ -398,6 +434,13 @@ var Rekanva = exports.Rekanva = function () {
 					});
 				}
 			});
+		}
+	}, {
+		key: 'play',
+		value: function play() {
+			this.state = 'playing';
+			this._updateAttrs();
+			this._updatePlayQueue();
 			this.queue[0].map(function (rekanva) {
 				return rekanva.rekapi.play(1);
 			});
