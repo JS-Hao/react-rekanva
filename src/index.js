@@ -1,39 +1,33 @@
 import { Rekapi, Actor } from 'rekapi';
-
-const _converter = {
-	'translateX':  'x',
-	'translateY':  'y',
-	'scale'     :  ['scaleX', 'scaleY'],
-	'scaleX'    :  'scaleX',
-	'scaleY'    :  'scaleY',
-	'opacity'   :  'opacity',
-	'width'     :  'width',
-	'height'    :  'height',
-	'rotate'    :  'rotate',
-	'clipWidth' :  'clipWidth',
-	'clipHeight':  'clipHeight',
-	'clipX'     :  'clipX',
-	'clipY'     :  'clipY',
-	'rotation'  :  'rotation',
-}
+import _converter from './_converter';
+import update from './update';
+import add from './add';
+import deleteFunc from './delete';
+import play from './play';
+import stop from './stop';
+import reset from './reset';
+import end from './end';
+import combine from './combine';
+import to from './to';
 
 export class Rekanva {
 	constructor(options) {
-		const { 
-			target, 
-			easing = 'linear', 
-			duration = 1000, 
+		const {
+			target,
+			easing = 'linear',
+			duration = 1000,
 			initOpt,
 
-			onStop, 
-			onPlay, 
-			onPause, 
-			onEnd, 
-			onReset, 
+			onStop,
+			onPlay,
+			onPause,
+			onEnd,
+			onReset,
 
 			...props } = options;
 
 		this.id = this._getHash();
+		this.options = options;
 		this.target = target;
 		this.initOpt = initOpt || {};
 		this.attrs = Object.assign({}, target.attrs, this.initOpt);
@@ -149,6 +143,7 @@ export class Rekanva {
 	}
 
 	_getState(moment, converter, isAnother) {
+		// console.log('关键词', converter)
 		const state = {};
 		for (let key in converter) {
 			if (isAnother && this.tracks.indexOf(key) !== -1) {
@@ -177,11 +172,17 @@ export class Rekanva {
 			case 'clipWidth':
 			case 'clipHeight':
 			case 'opacity':
-				(this.attrs[key] === undefined) && (this.attrs[key] = 1);
-				(converter !== undefined) ? (state[key] = converter - this.attrs[key]) : (state[key] = 0);
+			case 'x2':
+			case 'y2':
+
+				const newKey = key === 'x2' ? 'x' : (key === 'y2' ? 'y' : key);
+				// key = key === 'x2' ? 'x' : key;
+				// key = key === 'y2' ? 'y' : key;
+				(this.attrs[newKey] === undefined) && (this.attrs[newKey] = 1);
+				(converter !== undefined) ? (state[newKey] = converter - this.attrs[newKey]) : (state[newKey] = 0);
 				break;
 
-			default: 
+			default:
 				(converter !== undefined ) ? (state[key] = converter) : (state[key] = 0);
 				break;
 		}
@@ -217,29 +218,15 @@ export class Rekanva {
 		this.onEnd.push(func);
 	}
 
-	
-
-	update(data) {
-		const converter = Object.assign({}, this.converter, data);
-		this.attrs = Object.assign({}, this.target.attrs, this.initOpt);
-		this.rekapi.removeActor(this.actor);
-		this.actor.removeAllKeyframes();
-
-		this.actor.importTimeline(this._addTimeline(converter));
-		this.pathTimeline && this.actor.importTimeline(this.pathTimeline);
-		this.specialTimeline && this.actor.importTimeline(this.specialTimeline);
-		this.rekapi.addActor(this.actor);
+	_initAttrs(attrs) {
+		for (const key in this.converter) {
+			if (this.attrs[key] === undefined) {
+				this.target.attrs[key] === undefined ? (this.attrs[key] = 1) : (this.attrs[key] = this.target.attrs[key])
+			}
+		}
 	}
 
-	addEnd(func) {
-		this.onEnd.push(func);
-	}
-
-	addReset(func) {
-		this.onReset.onReset(func);
-	}
-
-	getLastItem(arr) {
+	_getLastItem(arr) {
 		let maxTime, lastItem;
 		arr.map(item => {
 			const duration = item.duration;
@@ -256,33 +243,9 @@ export class Rekanva {
 		return lastItem;
 	}
 
-	push() {
-		const argu = Array.from(arguments);
-		const len = argu.length;
-		if (len === 1) {
-			const rekanva = argu[0];
-			rekanva instanceof Rekanva && this.queue.push(rekanva);
-			// this._updatePlayQueue();
-		} else {
-			const index = (typeof argu[0] === 'number') ? argu[0] : this.queue.length;
-			const rekanva = argu[1];
-			rekanva instanceof Rekanva && this.queue.splice(index, 0, rekanva);
-			// this._updatePlayQueue();
-		}
-	}
-
-	pop(index) {
-		if (index) {
-			this.queue.splice(index, 1);
-			// this._updatePlayQueue();
-		} else {
-			this.queue.pop();
-			// this._updatePlayQueue();
-		}
-	}
-
 	_updateAttrs() {
 		this.attrs = Object.assign({}, this.target.attrs, this.initOpt);
+		this._initAttrs();
 	}
 
 	_updatePlayQueue() {
@@ -290,12 +253,13 @@ export class Rekanva {
 		reverse.map((item, key) => {
 			// 当最后一组动画的duration最长的动画执行完毕后，将状态置位end
 			if (key === 0) {
-				const lastItem = this.getLastItem(item);
+				const lastItem = this._getLastItem(item);
 				lastItem._addEndState(() => {
 					this.state = 'end';
 				})
 			}
 			if (reverse[key + 1]) {
+
 				// 解除上一个动画onStop事件的所有事件绑定
 				reverse[key + 1][0].rekapi.off('stop');
 				// 重新绑定
@@ -309,227 +273,6 @@ export class Rekanva {
 				
 			}
 		})
-	}
-
-	play() {
-		this.state = 'playing';
-		this._updateAttrs();
-		this._updatePlayQueue();
-		this.queue[0].map(rekanva => rekanva.rekapi.play(1));
-	}
-
-	stop() {
-		this.queue.map((item, key1) => {
-			item.map((rekanva, key2) => {
-				const rekapi = rekanva.rekapi;
-				if (rekapi.isPlaying()) {
-					if (key2 === 0) {
-						// 解除所有stop事件的绑定
-						rekapi.off('stop');
-						rekapi.stop();
-						// 手动触发onStop事件
-						//rekanva.onStop && rekanva.onStop();
-						rekanva.onStop.map(func => func.call(this));
-						// 重新绑定
-						rekapi.on('stop', () => {
-							rekanva.onStop.map(func => func.call(this));
-						});
-						// item[key1 + 1] && rekapi.on('stop', () => {
-						// 	item[key1 + 1].map(nextRekanva => nextRekanva.rekapi.play(1));
-						// });
-						this.queue[key1 + 1] && rekapi.on('stop', () => {
-							this.queue[key1 + 1].map(nextRekanva => nextRekanva.rekapi.play(1));
-						});
-					} else {
-						rekapi.stop();	
-					}
-				}
-			})
-		})
-	}
-
-	getFirstAndLastState(queue) {
-		let state0, state1, minTime;
-		queue[0].map(item => {
-			const duration = item.duration;
-			if (state0) {
-				if (duration <= minTime) {
-					state0 = item.state;
-					minTime = duration;
-				}
-			} else {
-				state0 = item.state;
-				minTime = duration;
-			}
- 		});
-
- 		queue[queue.length - 1].map(item => {
- 			const duration = item.duration;
- 			if (state1) {
- 				if (duration >= minTime) {
- 					state1 = item.state;
- 					maxTime = duration;
- 				}
- 			} else {
- 				state1 = item.state;
- 				maxTime = duration;
- 			}
- 		});
-
- 		return [ state0, state1 ];
-	}
-
-	reset() {
-		const resetQueue = [];
-		switch (this.state) {
-			case 'playing':
-				let index;
-				this.queue.map((item, key1) => {
-					item.map((rekanva, key2) => {
-						const rekapi = rekanva.rekapi;
-						if (rekapi.isPlaying()) {
-
-							if (key2 === 0) {
-								// 更新当前动画队列的index
-								index = key1 + 1;
-								// 解除所有stop事件的绑定
-								rekapi.off('stop');
-								rekapi.stop();
-								// 重新绑定
-								rekapi.on('stop', () => {
-									rekanva.onStop.map(func => func.call(this));
-								});
-								
-								this.queue[key1 + 1] && rekapi.on('stop', () => {
-									this.queue[key1 + 1].map(nextRekanva => nextRekanva.rekapi.play(1));
-								});
-								// 更新target到reset状态
-								this._to(rekanva.target, Object.assign({}, this._getInitState(rekanva.attrs, rekanva.converter)));
-								// 触发target的onReset事件
-								// rekanva.onReset.map(func => func.call(this));
-								resetQueue.unshift(() => {
-									rekanva.onReset.map(func => func.call(this));
-								})
-
-							} else {
-								rekapi.off('stop');
-								rekapi.stop();
-								rekapi.on('stop', () => {
-									rekanva.onStop.map(func => func.call(this));
-								});
-								this._to(rekanva.target, Object.assign({}, this._getInitState(rekanva.attrs, rekanva.converter)));
-								// rekanva.onReset.map(func => func.call(this));
-								resetQueue.unshift(() => {
-									rekanva.onReset.map(func => func.call(this));
-								})
-							}
-
-						} else if (index === undefined || key1 <= index) {
-							this._to(rekanva.target, Object.assign({}, this._getInitState(rekanva.attrs, rekanva.converter)));
-							// rekanva.onReset.map(func => func.call(this));
-							resetQueue.unshift(() => {
-								rekanva.onReset.map(func => func.call(this));
-							})
-
-						} else {
-							return;
-						}
-					});
-				});
-				break;	
-
-			case 'init':
-				break;
-
-			case 'end':
-			default:
-				this.queue.map(item => {
-					item.map(rekanva => {
-						this._to(rekanva.target, Object.assign({}, this._getInitState(rekanva.attrs, rekanva.converter)));
-						// rekanva.onReset.map(func => func.call(this));
-						resetQueue.unshift(() => {
-							rekanva.onReset.map(func => func.call(this));
-						})
-					});
-				})
-				break;
-		}
-
-		// 执行所有回调函数
-		resetQueue.map(func => func());
-		this.state = 'init';
-	}
-
-	end() {
-		switch (this.state) {
-			case 'playing':
-				let index;
-				this.queue.map((item, key1) => {
-					item.map((rekanva, key2) => {
-						const rekapi = rekanva.rekapi;
-						if (rekapi.isPlaying()) {
-
-							if (key2 === 0) {
-								// 更新当前动画队列的index
-								index = key1 + 1;
-								// 解除所有stop事件的绑定
-								rekapi.off('stop');
-								rekapi.stop();
-								// 重新绑定
-								rekapi.on('stop', () => {
-									rekanva.onStop.map(func => func.call(this));
-								});
-								this.queue[key1 + 1] && rekapi.on('stop', () => {
-									this.queue[key1 + 1].map(nextRekanva => nextRekanva.rekapi.play(1));
-								});
-								// 更新target到end状态
-								// rekanva.target.to(Object.assign({}, this._getEndState(rekanva.attrs, rekanva.converter), { duration: -1 }));
-								this._to(rekanva.target, Object.assign({}, this._getEndState(rekanva.attrs, rekanva.converter)));
-								// rekanva.target.setAttrs(Object.assign({}, this._getEndState(rekanva.attrs, rekanva.converter)));
-								// 触发traget的onEnd事件
-								rekanva.onEnd.map(func => func.call(this));
-
-							} else {
-								rekapi.off('stop');
-								rekapi.stop();
-								rekapi.on('stop', () => {
-									rekanva.onStop.map(func => func.call(this));
-								});
-								// rekanva.target.to(Object.assign({}, this._getEndState(rekanva.attrs, rekanva.converter), { duration: -1 }));
-								this._to(rekanva.target, Object.assign({}, this._getEndState(rekanva.attrs, rekanva.converter)));
-								// rekanva.target.setAttrs(Object.assign({}, this._getEndState(rekanva.attrs, rekanva.converter)));
-								rekanva.onEnd.map(func => func.call(this));
-							}
-
-						} else if (index !== undefined && key1 >= index) {
-							// rekanva.target.to(Object.assign({}, this._getEndState(rekanva.attrs, rekanva.converter), { duration: -1 }));
-							this._to(rekanva.target, Object.assign({}, this._getEndState(rekanva.attrs, rekanva.converter)));
-							// rekanva.target.setAttrs(Object.assign({}, this._getEndState(rekanva.attrs, rekanva.converter)));
-							rekanva.onEnd.map(func => func.call(this));
-
-						} else {
-							return;
-						}
-					})
-				})
-				break;
-
-			case 'init':
-				this.queue.map(item => {
-					item.map(rekanva => {
-						// rekanva.target.to(Object.assign({}, this._getEndState(rekanva.attrs, rekanva.converter), { duration: -1 }));
-						this._to(rekanva.target, Object.assign({}, this._getEndState(rekanva.attrs, rekanva.converter)));
-						// rekanva.target.setAttrs(Object.assign({}, this._getEndState(rekanva.attrs, rekanva.converter)));
-						rekanva.onEnd.map(func => func.call(this));
-					})
-				})
-				break;
-
-			case 'end':
-			default:
-				break;
-		}
-		this.state = 'end';
 	}
 
 	_getInitState(attrs, converter) {
@@ -553,7 +296,10 @@ export class Rekanva {
 				case 'clipHeight':
 				case 'clipWidth':
 				case 'opacity':
-					state[key] = converter[key];
+				case 'x2':
+				case 'y2':
+					const newKey = key === 'x2' ? 'x' : (key === 'y2' ? 'y' : key);
+					state[newKey] = converter[newKey];
 					break;
 
 				default:
@@ -582,108 +328,11 @@ export class Rekanva {
 			}
 		});
 		return { lastTimeline, nextTimeline }
-	}
-
-	/**
-	 * combine 结合上一个动画
-	 * @param { object } options 动画配置
-	 * @param { object } options.target 动画元素, 默认为上一个动画元素
-	 * @param { number } options.duration 运动时间, 默认为1s
-	 * @param { string } options.easing 运动时间函数, 默认为上一个动画easing
-	 * @param { object } { ...options.props } 动画属性
-	 * @return { object } Rekanva实例
-	 *
-	 * 在结合同一个元素的两个动画时，要注意duration这个属性，当前后两个动画含有同名track(例如，两个动画都改变元素的x坐标)时，
-	 * duration应保持一致，否则我们无法对同名track进行合并处理
-	 */
-	combine(options) {
-		const { 
-			target = this.target, 
-			duration = this.duration, 
-			easing = this.easing, 
-
-			onPlay,
-			onStop,
-			onEnd,
-			onReset,
-			onPause,
-
-			...props } = options;
-		
-
-		if (target === this.target) {
-
-			// 增加自身的事件
-			this._isFunction(onStop) && this.onStop.push(onStop);
-			this._isFunction(onPlay) && this.onPlay.push(onPlay);
-			this._isFunction(onPause) && this.onPause.push(onPause);
-			this._isFunction(onEnd) && this.onEnd.push(onEnd);
-			this._isFunction(onReset) && this.onReset.onReset(onReset);
-
-			this.id = this._getHash();
-			this.duration = duration;
-			this.easing = easing;	
-
-			const { path, timeline, ...base } = props;
-			this.converter = this._toConvert(base);
-			if (path) {
-				this.pathTimeline = path(this.duration, this.attrs.x, this.attrs.y);
-			} else {
-				this.pathTimeline = null;
-			}
-			if (timeline) {
-				this.specialTimeline = this._addSpecialTimeline(timeline);
-			} else {
-				this.specialTimeline = null;
-			}
-
-			// if (props.path) {
-			// 	const { path, ...others } = props;
-			// 	this.converter = this._toConvert(others);
-			// 	this.pathTimeline = path(this.duration, this.attrs.x, this.attrs.y);
-			// } else {
-			// 	this.pathTimeline = null;
-			// 	this.converter = this._toConvert(props);
-			// }
-
-			this.rekapi.removeActor(this.actor);
-
-			const nextTimeline = (() => {
-				const actor = new Actor();
-				actor.importTimeline(this._addTimeline(this.converter));
-
-				this.pathTimeline && actor.importTimeline(this.pathTimeline);
-				this.specialTimeline && actor.importTimeline(this.specialTimeline);
-
-				return actor.exportTimeline();
-			})();
-
-			const lastTimeline = this.actor.exportTimeline();
-			const timelines = this._combineTimeline(lastTimeline, nextTimeline);
-			this.actor.removeAllKeyframes();
-			this.actor.importTimeline(timelines.lastTimeline);
-			this.actor.importTimeline(timelines.nextTimeline);
-			
-
-			this.rekapi.addActor(this.actor);
-
-		} else {
-			const rekanva = new Rekanva(Object.assign({}, options, { target, duration, easing }));
-			this.queue[this.queue.length - 1].push(rekanva);
-		}
-		return this;
-	}
-
-	to(options) {
-		const { target = this.target, duration = this.duration, easing = this.easing } = options;
-		const rekanva = new Rekanva(Object.assign({}, options, { target, duration, easing }));
-		this.queue.push([ rekanva ]);
-		return this;
-	}
+	}	
 }
 
 export function Path(path) {
-	const pathElement = document.createElementNS('http://www.w3.org/2000/svg', 'path'); 
+	const pathElement = document.createElementNS('http://www.w3.org/2000/svg', 'path');
 	pathElement.setAttributeNS(null, 'd', path);
 
 	return function(duration) {
@@ -706,3 +355,22 @@ export function Path(path) {
 		return actor.exportTimeline();
 	}
 }
+
+Rekanva._extends = function(name, func) {
+	this.prototype[name] = func;
+}
+
+const extendsList = { update, add, delete: deleteFunc, play, stop, reset, end, combine, to, }
+
+for (const name in extendsList) {
+	Rekanva._extends(name, extendsList[name]);
+}
+// Rekanva._extends('update', update);
+// Rekanva._extends('add', add);
+// Rekanva._extends('delete', deleteFunc);
+// Rekanva._extends('play', play);
+// Rekanva._extends('stop', stop);
+// Rekanva._extends('reset', reset);
+// Rekanva._extends('end', end);
+// Rekanva._extends('combine', combine);
+// Rekanva._extends('to', to);
