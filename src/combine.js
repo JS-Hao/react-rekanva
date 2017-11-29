@@ -73,7 +73,7 @@ export default function combine(options) {
 		this.rekapi.addActor(this.actor);
 
 	} else {
-		const rekanva = new Rekanva(Object.assign({}, options, { target, duration, easing }));
+		const rekanva = new this.constructor(Object.assign({}, options, { target, duration, easing }));
 		this.queue[this.queue.length - 1].push(rekanva);
 	}
 	return this;
