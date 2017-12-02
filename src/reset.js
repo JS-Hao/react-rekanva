@@ -20,12 +20,14 @@ export default function reset() {
 							});
 							
 							this.queue[key1 + 1] && rekapi.on('stop', () => {
-								this.queue[key1 + 1].map(nextRekanva => nextRekanva.rekapi.play(1));
+								this.queue[key1 + 1].map(nextRekanva => {
+									nextRekanva._updateTimeline();
+									nextRekanva.rekapi.play(1);
+								});
 							});
 							// 更新target到reset状态
 							this._to(rekanva.target, Object.assign({}, this._getInitState(rekanva.attrs, rekanva.converter)));
 							// 触发target的onReset事件
-							// rekanva.onReset.map(func => func.call(this));
 							resetQueue.unshift(() => {
 								rekanva.onReset.map(func => func.call(this));
 							})
@@ -37,7 +39,6 @@ export default function reset() {
 								rekanva.onStop.map(func => func.call(this));
 							});
 							this._to(rekanva.target, Object.assign({}, this._getInitState(rekanva.attrs, rekanva.converter)));
-							// rekanva.onReset.map(func => func.call(this));
 							resetQueue.unshift(() => {
 								rekanva.onReset.map(func => func.call(this));
 							})
@@ -45,7 +46,6 @@ export default function reset() {
 
 					} else if (index === undefined || key1 <= index) {
 						this._to(rekanva.target, Object.assign({}, this._getInitState(rekanva.attrs, rekanva.converter)));
-						// rekanva.onReset.map(func => func.call(this));
 						resetQueue.unshift(() => {
 							rekanva.onReset.map(func => func.call(this));
 						})
@@ -65,7 +65,6 @@ export default function reset() {
 			this.queue.map(item => {
 				item.map(rekanva => {
 					this._to(rekanva.target, Object.assign({}, this._getInitState(rekanva.attrs, rekanva.converter)));
-					// rekanva.onReset.map(func => func.call(this));
 					resetQueue.unshift(() => {
 						rekanva.onReset.map(func => func.call(this));
 					})

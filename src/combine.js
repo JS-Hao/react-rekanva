@@ -10,6 +10,7 @@
  * 在结合同一个元素的两个动画时，要注意duration这个属性，当前后两个动画含有同名track(例如，两个动画都改变元素的x坐标)时，
  * duration应保持一致，否则我们无法对同名track进行合并处理
  */
+import { Actor } from 'rekapi';
 export default function combine(options) {
 	const {
 		target = this.target,
@@ -24,57 +25,58 @@ export default function combine(options) {
 
 		...props } = options;
 	
-
-	if (target === this.target) {
+	const lastRekanva = this.queue[this.queue.length - 1][0];
+	if (target === lastRekanva.target) {
 
 		// 增加自身的事件
-		this._isFunction(onStop) && this.onStop.push(onStop);
-		this._isFunction(onPlay) && this.onPlay.push(onPlay);
-		this._isFunction(onPause) && this.onPause.push(onPause);
-		this._isFunction(onEnd) && this.onEnd.push(onEnd);
-		this._isFunction(onReset) && this.onReset.onReset(onReset);
+		lastRekanva._isFunction(onStop) && lastRekanva.onStop.push(onStop);
+		lastRekanva._isFunction(onPlay) && lastRekanva.onPlay.push(onPlay);
+		lastRekanva._isFunction(onPause) && lastRekanva.onPause.push(onPause);
+		lastRekanva._isFunction(onEnd) && lastRekanva.onEnd.push(onEnd);
+		lastRekanva._isFunction(onReset) && lastRekanva.onReset.unshift(onReset);
 
-		this.id = this._getHash();
-		this.duration = duration;
-		this.easing = easing;
+		lastRekanva.id = lastRekanva._getHash();
+		lastRekanva.duration = duration;
+		lastRekanva.easing = easing;
 
 		const { path, timeline, ...base } = props;
-		this.converter = this._toConvert(base);
+		lastRekanva.converter = Object.assign({}, lastRekanva.converter, lastRekanva._toConvert(base));
 		if (path) {
-			this.pathTimeline = path(this.duration, this.attrs.x, this.attrs.y);
+			lastRekanva.pathTimeline = path(lastRekanva.duration, lastRekanva.attrs.x, lastRekanva.attrs.y);
 		} else {
-			this.pathTimeline = null;
+			lastRekanva.pathTimeline = null;
 		}
 		if (timeline) {
-			this.specialTimeline = this._addSpecialTimeline(timeline);
+			lastRekanva.specialTimeline = lastRekanva._addSpecialTimeline(timeline);
 		} else {
-			this.specialTimeline = null;
+			lastRekanva.specialTimeline = null;
 		}
 
-		this.rekapi.removeActor(this.actor);
+		lastRekanva.rekapi.removeActor(lastRekanva.actor);
 
 		const nextTimeline = (() => {
 			const actor = new Actor();
-			actor.importTimeline(this._addTimeline(this.converter));
+			actor.importTimeline(lastRekanva._addTimeline(lastRekanva.converter));
 
-			this.pathTimeline && actor.importTimeline(this.pathTimeline);
-			this.specialTimeline && actor.importTimeline(this.specialTimeline);
+			lastRekanva.pathTimeline && actor.importTimeline(lastRekanva.pathTimeline);
+			lastRekanva.specialTimeline && actor.importTimeline(lastRekanva.specialTimeline);
 
 			return actor.exportTimeline();
 		})();
 
-		const lastTimeline = this.actor.exportTimeline();
-		const timelines = this._combineTimeline(lastTimeline, nextTimeline);
-		this.actor.removeAllKeyframes();
-		this.actor.importTimeline(timelines.lastTimeline);
-		this.actor.importTimeline(timelines.nextTimeline);
+		const lastTimeline = lastRekanva.actor.exportTimeline();
+		const timelines = lastRekanva._combineTimeline(lastTimeline, nextTimeline);
+		lastRekanva.actor.removeAllKeyframes();
+		lastRekanva.actor.importTimeline(timelines.lastTimeline);
+		lastRekanva.actor.importTimeline(timelines.nextTimeline);
 		
 
-		this.rekapi.addActor(this.actor);
+		lastRekanva.rekapi.addActor(lastRekanva.actor);
 
 	} else {
 		const rekanva = new this.constructor(Object.assign({}, options, { target, duration, easing }));
 		this.queue[this.queue.length - 1].push(rekanva);
 	}
+	
 	return this;
 }

@@ -101,9 +101,11 @@ export class Rekanva {
 
 	_addTimeline(converter, isAnother) {
 		const actor = new Actor();
+		const startState = this._getState('start', converter, isAnother);
+		const endState = this._getState('end', converter, isAnother);
 		actor
-			.keyframe(0, this._getState('start', converter, isAnother))
-			.keyframe(this.duration, this._getState('end', converter, isAnother));
+			.keyframe(0, startState)
+			.keyframe(this.duration, endState);
 		return actor.exportTimeline();
 	}
 
@@ -143,7 +145,6 @@ export class Rekanva {
 	}
 
 	_getState(moment, converter, isAnother) {
-		// console.log('关键词', converter)
 		const state = {};
 		for (let key in converter) {
 			if (isAnother && this.tracks.indexOf(key) !== -1) {
@@ -176,8 +177,6 @@ export class Rekanva {
 			case 'y2':
 
 				const newKey = key === 'x2' ? 'x' : (key === 'y2' ? 'y' : key);
-				// key = key === 'x2' ? 'x' : key;
-				// key = key === 'y2' ? 'y' : key;
 				(this.attrs[newKey] === undefined) && (this.attrs[newKey] = 1);
 				(converter !== undefined) ? (state[newKey] = converter - this.attrs[newKey]) : (state[newKey] = 0);
 				break;
@@ -248,6 +247,17 @@ export class Rekanva {
 		this._initAttrs();
 	}
 
+	_updateTimeline() {
+		this._updateAttrs();
+		this.rekapi.removeActor(this.actor);
+		this.actor.removeAllKeyframes();
+
+		this.actor.importTimeline(this._addTimeline(this.converter));
+		this.pathTimeline && this.actor.importTimeline(this.pathTimeline);
+		this.specialTimeline && this.actor.importTimeline(this.specialTimeline);
+		this.rekapi.addActor(this.actor);
+	}
+
 	_updatePlayQueue() {
 		const reverse = this.queue.concat().reverse();
 		reverse.map((item, key) => {
@@ -268,9 +278,11 @@ export class Rekanva {
 				});
 				// 关联前后两个动画
 				reverse[key + 1][0].rekapi.on('stop', () => {
-					reverse[key].map(rekanva => rekanva.rekapi.play(1));
-				});
-				
+					reverse[key].map(rekanva => {
+						rekanva._updateTimeline();
+						rekanva.rekapi.play(1)
+					});
+				});				
 			}
 		})
 	}

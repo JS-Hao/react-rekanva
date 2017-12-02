@@ -60,488 +60,11 @@
 /******/ 	__webpack_require__.p = "";
 /******/
 /******/ 	// Load entry module and return exports
-/******/ 	return __webpack_require__(__webpack_require__.s = 0);
+/******/ 	return __webpack_require__(__webpack_require__.s = 2);
 /******/ })
 /************************************************************************/
 /******/ ([
 /* 0 */
-/***/ (function(module, exports, __webpack_require__) {
-
-"use strict";
-
-
-Object.defineProperty(exports, "__esModule", {
-	value: true
-});
-exports.Rekanva = undefined;
-
-var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
-
-exports.Path = Path;
-
-var _rekapi = __webpack_require__(1);
-
-var _converter2 = __webpack_require__(2);
-
-var _converter3 = _interopRequireDefault(_converter2);
-
-var _update = __webpack_require__(3);
-
-var _update2 = _interopRequireDefault(_update);
-
-var _add = __webpack_require__(4);
-
-var _add2 = _interopRequireDefault(_add);
-
-var _delete = __webpack_require__(5);
-
-var _delete2 = _interopRequireDefault(_delete);
-
-var _play = __webpack_require__(6);
-
-var _play2 = _interopRequireDefault(_play);
-
-var _stop = __webpack_require__(7);
-
-var _stop2 = _interopRequireDefault(_stop);
-
-var _reset = __webpack_require__(8);
-
-var _reset2 = _interopRequireDefault(_reset);
-
-var _end = __webpack_require__(9);
-
-var _end2 = _interopRequireDefault(_end);
-
-var _combine = __webpack_require__(10);
-
-var _combine2 = _interopRequireDefault(_combine);
-
-var _to2 = __webpack_require__(11);
-
-var _to3 = _interopRequireDefault(_to2);
-
-function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
-function _defineProperty(obj, key, value) { if (key in obj) { Object.defineProperty(obj, key, { value: value, enumerable: true, configurable: true, writable: true }); } else { obj[key] = value; } return obj; }
-
-function _objectWithoutProperties(obj, keys) { var target = {}; for (var i in obj) { if (keys.indexOf(i) >= 0) continue; if (!Object.prototype.hasOwnProperty.call(obj, i)) continue; target[i] = obj[i]; } return target; }
-
-function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
-
-var Rekanva = exports.Rekanva = function () {
-	function Rekanva(options) {
-		var _this = this;
-
-		_classCallCheck(this, Rekanva);
-
-		var target = options.target,
-		    _options$easing = options.easing,
-		    easing = _options$easing === undefined ? 'linear' : _options$easing,
-		    _options$duration = options.duration,
-		    duration = _options$duration === undefined ? 1000 : _options$duration,
-		    initOpt = options.initOpt,
-		    onStop = options.onStop,
-		    onPlay = options.onPlay,
-		    onPause = options.onPause,
-		    onEnd = options.onEnd,
-		    onReset = options.onReset,
-		    props = _objectWithoutProperties(options, ['target', 'easing', 'duration', 'initOpt', 'onStop', 'onPlay', 'onPause', 'onEnd', 'onReset']);
-
-		this.id = this._getHash();
-		this.options = options;
-		this.target = target;
-		this.initOpt = initOpt || {};
-		this.attrs = Object.assign({}, target.attrs, this.initOpt);
-		this.easing = easing;
-		this.duration = duration;
-		this.animOpt = props;
-		this.rekapi = new _rekapi.Rekapi(document.createElement('canvas').getContext('2d'));
-		this.pathTimeline = null;
-
-		this.onStop = [];
-		this.onPlay = [];
-		this.onPause = [];
-		this.onEnd = [];
-		this.onReset = [];
-		this.state = 'init';
-
-		var _animOpt = this.animOpt,
-		    path = _animOpt.path,
-		    timeline = _animOpt.timeline,
-		    base = _objectWithoutProperties(_animOpt, ['path', 'timeline']);
-
-		this.animOpt = base;
-		if (path) {
-			this.pathTimeline = path(this.duration, this.attrs.x, this.attrs.y);
-		} else {
-			this.pathTimeline = null;
-		}
-		if (timeline) {
-			this.specialTimeline = this._addSpecialTimeline(timeline);
-		} else {
-			this.specialTimeline = null;
-		}
-
-		this.converter = this._toConvert(this.animOpt);
-		this.tracks = Object.keys(this.converter);
-
-		this.actor = new _rekapi.Actor({
-			render: function render(context, state) {
-				_this._render(_this.target, state, _this.attrs);
-			}
-		});
-
-		this.actor.importTimeline(this._addTimeline(this.converter));
-
-		this.pathTimeline && this.actor.importTimeline(this.pathTimeline);
-		this.specialTimeline && this.actor.importTimeline(this.specialTimeline);
-
-		this.rekapi.addActor(this.actor);
-		this.queue = [[this]];
-
-		// 事件监听
-		this._isFunction(onStop) && this.onStop.push(onStop);
-		this._isFunction(onPlay) && this.onPlay.push(onPlay);
-		this._isFunction(onPause) && this.onPause.push(onPause);
-		this._isFunction(onEnd) && this.onEnd.push(onEnd);
-		this._isFunction(onReset) && this.onReset.unshift(onReset);
-
-		this.rekapi.on('stop', function () {
-			_this.onStop.map(function (func) {
-				return func.call(_this);
-			});
-		});
-		this.rekapi.on('play', function () {
-			_this.onPlay.map(function (func) {
-				return func.call(_this);
-			});
-		});
-		this.rekapi.on('pause', function () {
-			_this.onPause.map(function (func) {
-				return func.call(_this);
-			});
-		});
-		this.rekapi.on('animationComplete', function () {
-			_this.onEnd.map(function (func) {
-				return func.call(_this);
-			});
-		});
-	}
-
-	_createClass(Rekanva, [{
-		key: '_getHash',
-		value: function _getHash() {
-			return Date.now() + '-' + parseInt(Math.random() * 1000);
-		}
-	}, {
-		key: '_addTimeline',
-		value: function _addTimeline(converter, isAnother) {
-			var actor = new _rekapi.Actor();
-			actor.keyframe(0, this._getState('start', converter, isAnother)).keyframe(this.duration, this._getState('end', converter, isAnother));
-			return actor.exportTimeline();
-		}
-	}, {
-		key: '_addSpecialTimeline',
-		value: function _addSpecialTimeline(timeline) {
-			var actor = new _rekapi.Actor();
-			for (var index in timeline) {
-				var frame = void 0;
-				var converter = this._toConvert(timeline[index]);
-				if (index.indexOf('%') !== -1) {
-					frame = parseFloat(index) / 100 * this.duration;
-				} else {
-					frame = parseFloat(index) * this.duration;
-				}
-				actor.keyframe(frame, this._getState('end', converter));
-			}
-			return actor.exportTimeline();
-		}
-	}, {
-		key: '_isFunction',
-		value: function _isFunction(func) {
-			return func && typeof func === 'function';
-		}
-	}, {
-		key: '_toConvert',
-		value: function _toConvert(animOpt) {
-			var converter = {};
-
-			var _loop = function _loop(key) {
-				if (typeof _converter3.default[key] === 'string') {
-					converter[_converter3.default[key]] = animOpt[key];
-				} else if (Array.isArray(_converter3.default[key])) {
-					_converter3.default[key].map(function (item) {
-						converter[item] = animOpt[key];
-					});
-				}
-			};
-
-			for (var key in animOpt) {
-				_loop(key);
-			}
-			return converter;
-		}
-	}, {
-		key: '_getState',
-		value: function _getState(moment, converter, isAnother) {
-			// console.log('关键词', converter)
-			var state = {};
-			for (var key in converter) {
-				if (isAnother && this.tracks.indexOf(key) !== -1) {
-					key = key + '&' + this.id;
-				} else if (isAnother && moment === 'end') {
-					// 仅在结尾处更新tracks
-					this.tracks.push(key);
-				}
-
-				if (moment === 'start') {
-					this._setAttributes(state, key);
-				} else if (moment === 'end') {
-					this._setAttributes(state, key, converter[key.split('&')[0]]);
-				}
-			}
-			return state;
-		}
-	}, {
-		key: '_setAttributes',
-		value: function _setAttributes(state, key, converter) {
-			switch (key.split('&')[0]) {
-				case 'scaleX':
-				case 'scaleY':
-				case 'width':
-				case 'height':
-				case 'clipX':
-				case 'clipY':
-				case 'clipWidth':
-				case 'clipHeight':
-				case 'opacity':
-				case 'x2':
-				case 'y2':
-
-					var newKey = key === 'x2' ? 'x' : key === 'y2' ? 'y' : key;
-					// key = key === 'x2' ? 'x' : key;
-					// key = key === 'y2' ? 'y' : key;
-					this.attrs[newKey] === undefined && (this.attrs[newKey] = 1);
-					converter !== undefined ? state[newKey] = converter - this.attrs[newKey] : state[newKey] = 0;
-					break;
-
-				default:
-					converter !== undefined ? state[key] = converter : state[key] = 0;
-					break;
-			}
-		}
-	}, {
-		key: '_to',
-		value: function _to(target, attr) {
-			target.setAttrs(attr);
-			var layer = target.getLayer();
-			layer.batchDraw();
-		}
-	}, {
-		key: '_render',
-		value: function _render(target, state, attrs) {
-			var newState = {};
-			var that = this;
-			for (var key in state) {
-				var newKey = key.split('&')[0];
-				newState[newKey] = newState[newKey] ? newState[newKey] + state[key] : state[key];
-			}
-			for (var _key in newState) {
-				switch (_key) {
-					case 'rotate':
-						target.rotation(newState[_key]);
-						break;
-					default:
-						that._to(target, _defineProperty({}, _key, newState[_key] + attrs[_key]));
-				}
-			}
-		}
-	}, {
-		key: '_addEndState',
-		value: function _addEndState(func) {
-			this.onEnd.push(func);
-		}
-	}, {
-		key: '_initAttrs',
-		value: function _initAttrs(attrs) {
-			for (var key in this.converter) {
-				if (this.attrs[key] === undefined) {
-					this.target.attrs[key] === undefined ? this.attrs[key] = 1 : this.attrs[key] = this.target.attrs[key];
-				}
-			}
-		}
-	}, {
-		key: '_getLastItem',
-		value: function _getLastItem(arr) {
-			var maxTime = void 0,
-			    lastItem = void 0;
-			arr.map(function (item) {
-				var duration = item.duration;
-				if (maxTime) {
-					if (duration >= maxTime) {
-						maxTime = duration;
-						lastItem = item;
-					}
-				} else {
-					maxTime = duration;
-					lastItem = item;
-				}
-			});
-			return lastItem;
-		}
-	}, {
-		key: '_updateAttrs',
-		value: function _updateAttrs() {
-			this.attrs = Object.assign({}, this.target.attrs, this.initOpt);
-			this._initAttrs();
-		}
-	}, {
-		key: '_updatePlayQueue',
-		value: function _updatePlayQueue() {
-			var _this2 = this;
-
-			var reverse = this.queue.concat().reverse();
-			reverse.map(function (item, key) {
-				// 当最后一组动画的duration最长的动画执行完毕后，将状态置位end
-				if (key === 0) {
-					var lastItem = _this2._getLastItem(item);
-					lastItem._addEndState(function () {
-						_this2.state = 'end';
-					});
-				}
-				if (reverse[key + 1]) {
-
-					// 解除上一个动画onStop事件的所有事件绑定
-					reverse[key + 1][0].rekapi.off('stop');
-					// 重新绑定
-					reverse[key + 1][0].rekapi.on('stop', function () {
-						reverse[key + 1][0].onStop.map(function (func) {
-							return func.call(_this2);
-						});
-					});
-					// 关联前后两个动画
-					reverse[key + 1][0].rekapi.on('stop', function () {
-						reverse[key].map(function (rekanva) {
-							return rekanva.rekapi.play(1);
-						});
-					});
-				}
-			});
-		}
-	}, {
-		key: '_getInitState',
-		value: function _getInitState(attrs, converter) {
-			var state = {};
-			for (var key in converter) {
-				state[key] = attrs[key];
-			}
-			return state;
-		}
-	}, {
-		key: '_getEndState',
-		value: function _getEndState(attrs, converter) {
-			var state = {};
-			for (var key in converter) {
-				switch (key) {
-					case 'scaleX':
-					case 'scaleY':
-					case 'width':
-					case 'height':
-					case 'clipX':
-					case 'clipY':
-					case 'clipHeight':
-					case 'clipWidth':
-					case 'opacity':
-					case 'x2':
-					case 'y2':
-						var newKey = key === 'x2' ? 'x' : key === 'y2' ? 'y' : key;
-						state[newKey] = converter[newKey];
-						break;
-
-					default:
-						state[key] = converter[key] + attrs[key];
-						break;
-				}
-			}
-			return state;
-		}
-
-		// 获取两条timeline，当timeline有重复定义的track定义时，将相同的track合并到nextTimeline上，并删除lastTimeline的同名track
-
-	}, {
-		key: '_combineTimeline',
-		value: function _combineTimeline(lastTimeline, nextTimeline) {
-			var _this3 = this;
-
-			var lastTrackNames = lastTimeline.trackNames;
-			var nextTrackNames = nextTimeline.trackNames;
-			lastTrackNames.map(function (name) {
-				var key = name.split('&')[0];
-				var index = nextTrackNames.indexOf(key);
-				if (index !== -1) {
-					nextTimeline.trackNames.splice(index, 1, key + '&' + _this3.id);
-					var propertyTrack = nextTimeline.propertyTracks[key];
-					delete nextTimeline.propertyTracks[key];
-					nextTimeline.propertyTracks[key + '&' + _this3.id] = propertyTrack;
-					nextTimeline.propertyTracks[key + '&' + _this3.id].map(function (item) {
-						item.name = key + '&' + _this3.id;
-					});
-				}
-			});
-			return { lastTimeline: lastTimeline, nextTimeline: nextTimeline };
-		}
-	}]);
-
-	return Rekanva;
-}();
-
-function Path(path) {
-	var pathElement = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-	pathElement.setAttributeNS(null, 'd', path);
-
-	return function (duration) {
-		var length = parseInt(pathElement.getTotalLength());
-		var count = duration / 1000 * 60; // 帧数
-		var step = length / count; // 步长
-		var actor = new _rekapi.Actor();
-		var curLength = 0; // 当前长度
-
-		// 如果能从path中拿到所有的路径坐标，而不是在遍历中一个一个地getPointAtLength，
-		// 那么这边的计算速度会大大提升
-		// getPointSetFromPath(path)
-
-		for (var time = 0; time <= count; time++) {
-			var x = parseInt(pathElement.getPointAtLength(curLength).x);
-			var y = parseInt(pathElement.getPointAtLength(curLength).y);
-			actor.keyframe(time * (1000 / 60), { x: x, y: y });
-			curLength += step;
-		}
-		return actor.exportTimeline();
-	};
-}
-
-Rekanva._extends = function (name, func) {
-	this.prototype[name] = func;
-};
-
-var extendsList = { update: _update2.default, add: _add2.default, delete: _delete2.default, play: _play2.default, stop: _stop2.default, reset: _reset2.default, end: _end2.default, combine: _combine2.default, to: _to3.default };
-
-for (var name in extendsList) {
-	Rekanva._extends(name, extendsList[name]);
-}
-// Rekanva._extends('update', update);
-// Rekanva._extends('add', add);
-// Rekanva._extends('delete', deleteFunc);
-// Rekanva._extends('play', play);
-// Rekanva._extends('stop', stop);
-// Rekanva._extends('reset', reset);
-// Rekanva._extends('end', end);
-// Rekanva._extends('combine', combine);
-// Rekanva._extends('to', to);
-
-/***/ }),
-/* 1 */
 /***/ (function(module, exports, __webpack_require__) {
 
 /*! 2.0.6 */
@@ -11420,7 +10943,514 @@ Object.defineProperty(exports, 'DOMRenderer', {
 //# sourceMappingURL=rekapi.js.map
 
 /***/ }),
+/* 1 */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+	value: true
+});
+function update(data) {
+	data = data || {};
+	this.converter = Object.assign({}, this.converter, data);
+	this._updateTimeline();
+}
+
+exports.default = update;
+
+/***/ }),
 /* 2 */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+	value: true
+});
+exports.Rekanva = undefined;
+
+var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
+
+exports.Path = Path;
+
+var _rekapi = __webpack_require__(0);
+
+var _converter2 = __webpack_require__(3);
+
+var _converter3 = _interopRequireDefault(_converter2);
+
+var _update = __webpack_require__(1);
+
+var _update2 = _interopRequireDefault(_update);
+
+var _add = __webpack_require__(4);
+
+var _add2 = _interopRequireDefault(_add);
+
+var _delete = __webpack_require__(5);
+
+var _delete2 = _interopRequireDefault(_delete);
+
+var _play = __webpack_require__(6);
+
+var _play2 = _interopRequireDefault(_play);
+
+var _stop = __webpack_require__(7);
+
+var _stop2 = _interopRequireDefault(_stop);
+
+var _reset = __webpack_require__(8);
+
+var _reset2 = _interopRequireDefault(_reset);
+
+var _end = __webpack_require__(9);
+
+var _end2 = _interopRequireDefault(_end);
+
+var _combine = __webpack_require__(10);
+
+var _combine2 = _interopRequireDefault(_combine);
+
+var _to2 = __webpack_require__(11);
+
+var _to3 = _interopRequireDefault(_to2);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+function _defineProperty(obj, key, value) { if (key in obj) { Object.defineProperty(obj, key, { value: value, enumerable: true, configurable: true, writable: true }); } else { obj[key] = value; } return obj; }
+
+function _objectWithoutProperties(obj, keys) { var target = {}; for (var i in obj) { if (keys.indexOf(i) >= 0) continue; if (!Object.prototype.hasOwnProperty.call(obj, i)) continue; target[i] = obj[i]; } return target; }
+
+function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
+
+var Rekanva = exports.Rekanva = function () {
+	function Rekanva(options) {
+		var _this = this;
+
+		_classCallCheck(this, Rekanva);
+
+		var target = options.target,
+		    _options$easing = options.easing,
+		    easing = _options$easing === undefined ? 'linear' : _options$easing,
+		    _options$duration = options.duration,
+		    duration = _options$duration === undefined ? 1000 : _options$duration,
+		    initOpt = options.initOpt,
+		    onStop = options.onStop,
+		    onPlay = options.onPlay,
+		    onPause = options.onPause,
+		    onEnd = options.onEnd,
+		    onReset = options.onReset,
+		    props = _objectWithoutProperties(options, ['target', 'easing', 'duration', 'initOpt', 'onStop', 'onPlay', 'onPause', 'onEnd', 'onReset']);
+
+		this.id = this._getHash();
+		this.options = options;
+		this.target = target;
+		this.initOpt = initOpt || {};
+		this.attrs = Object.assign({}, target.attrs, this.initOpt);
+		this.easing = easing;
+		this.duration = duration;
+		this.animOpt = props;
+		this.rekapi = new _rekapi.Rekapi(document.createElement('canvas').getContext('2d'));
+		this.pathTimeline = null;
+
+		this.onStop = [];
+		this.onPlay = [];
+		this.onPause = [];
+		this.onEnd = [];
+		this.onReset = [];
+		this.state = 'init';
+
+		var _animOpt = this.animOpt,
+		    path = _animOpt.path,
+		    timeline = _animOpt.timeline,
+		    base = _objectWithoutProperties(_animOpt, ['path', 'timeline']);
+
+		this.animOpt = base;
+		if (path) {
+			this.pathTimeline = path(this.duration, this.attrs.x, this.attrs.y);
+		} else {
+			this.pathTimeline = null;
+		}
+		if (timeline) {
+			this.specialTimeline = this._addSpecialTimeline(timeline);
+		} else {
+			this.specialTimeline = null;
+		}
+
+		this.converter = this._toConvert(this.animOpt);
+		this.tracks = Object.keys(this.converter);
+
+		this.actor = new _rekapi.Actor({
+			render: function render(context, state) {
+				_this._render(_this.target, state, _this.attrs);
+			}
+		});
+
+		this.actor.importTimeline(this._addTimeline(this.converter));
+
+		this.pathTimeline && this.actor.importTimeline(this.pathTimeline);
+		this.specialTimeline && this.actor.importTimeline(this.specialTimeline);
+
+		this.rekapi.addActor(this.actor);
+		this.queue = [[this]];
+
+		// 事件监听
+		this._isFunction(onStop) && this.onStop.push(onStop);
+		this._isFunction(onPlay) && this.onPlay.push(onPlay);
+		this._isFunction(onPause) && this.onPause.push(onPause);
+		this._isFunction(onEnd) && this.onEnd.push(onEnd);
+		this._isFunction(onReset) && this.onReset.unshift(onReset);
+
+		this.rekapi.on('stop', function () {
+			_this.onStop.map(function (func) {
+				return func.call(_this);
+			});
+		});
+		this.rekapi.on('play', function () {
+			_this.onPlay.map(function (func) {
+				return func.call(_this);
+			});
+		});
+		this.rekapi.on('pause', function () {
+			_this.onPause.map(function (func) {
+				return func.call(_this);
+			});
+		});
+		this.rekapi.on('animationComplete', function () {
+			_this.onEnd.map(function (func) {
+				return func.call(_this);
+			});
+		});
+	}
+
+	_createClass(Rekanva, [{
+		key: '_getHash',
+		value: function _getHash() {
+			return Date.now() + '-' + parseInt(Math.random() * 1000);
+		}
+	}, {
+		key: '_addTimeline',
+		value: function _addTimeline(converter, isAnother) {
+			var actor = new _rekapi.Actor();
+			var startState = this._getState('start', converter, isAnother);
+			var endState = this._getState('end', converter, isAnother);
+			actor.keyframe(0, startState).keyframe(this.duration, endState);
+			return actor.exportTimeline();
+		}
+	}, {
+		key: '_addSpecialTimeline',
+		value: function _addSpecialTimeline(timeline) {
+			var actor = new _rekapi.Actor();
+			for (var index in timeline) {
+				var frame = void 0;
+				var converter = this._toConvert(timeline[index]);
+				if (index.indexOf('%') !== -1) {
+					frame = parseFloat(index) / 100 * this.duration;
+				} else {
+					frame = parseFloat(index) * this.duration;
+				}
+				actor.keyframe(frame, this._getState('end', converter));
+			}
+			return actor.exportTimeline();
+		}
+	}, {
+		key: '_isFunction',
+		value: function _isFunction(func) {
+			return func && typeof func === 'function';
+		}
+	}, {
+		key: '_toConvert',
+		value: function _toConvert(animOpt) {
+			var converter = {};
+
+			var _loop = function _loop(key) {
+				if (typeof _converter3.default[key] === 'string') {
+					converter[_converter3.default[key]] = animOpt[key];
+				} else if (Array.isArray(_converter3.default[key])) {
+					_converter3.default[key].map(function (item) {
+						converter[item] = animOpt[key];
+					});
+				}
+			};
+
+			for (var key in animOpt) {
+				_loop(key);
+			}
+			return converter;
+		}
+	}, {
+		key: '_getState',
+		value: function _getState(moment, converter, isAnother) {
+			var state = {};
+			for (var key in converter) {
+				if (isAnother && this.tracks.indexOf(key) !== -1) {
+					key = key + '&' + this.id;
+				} else if (isAnother && moment === 'end') {
+					// 仅在结尾处更新tracks
+					this.tracks.push(key);
+				}
+
+				if (moment === 'start') {
+					this._setAttributes(state, key);
+				} else if (moment === 'end') {
+					this._setAttributes(state, key, converter[key.split('&')[0]]);
+				}
+			}
+			return state;
+		}
+	}, {
+		key: '_setAttributes',
+		value: function _setAttributes(state, key, converter) {
+			switch (key.split('&')[0]) {
+				case 'scaleX':
+				case 'scaleY':
+				case 'width':
+				case 'height':
+				case 'clipX':
+				case 'clipY':
+				case 'clipWidth':
+				case 'clipHeight':
+				case 'opacity':
+				case 'x2':
+				case 'y2':
+
+					var newKey = key === 'x2' ? 'x' : key === 'y2' ? 'y' : key;
+					this.attrs[newKey] === undefined && (this.attrs[newKey] = 1);
+					converter !== undefined ? state[newKey] = converter - this.attrs[newKey] : state[newKey] = 0;
+					break;
+
+				default:
+					converter !== undefined ? state[key] = converter : state[key] = 0;
+					break;
+			}
+		}
+	}, {
+		key: '_to',
+		value: function _to(target, attr) {
+			target.setAttrs(attr);
+			var layer = target.getLayer();
+			layer.batchDraw();
+		}
+	}, {
+		key: '_render',
+		value: function _render(target, state, attrs) {
+			var newState = {};
+			var that = this;
+			for (var key in state) {
+				var newKey = key.split('&')[0];
+				newState[newKey] = newState[newKey] ? newState[newKey] + state[key] : state[key];
+			}
+			for (var _key in newState) {
+				switch (_key) {
+					case 'rotate':
+						target.rotation(newState[_key]);
+						break;
+					default:
+						that._to(target, _defineProperty({}, _key, newState[_key] + attrs[_key]));
+				}
+			}
+		}
+	}, {
+		key: '_addEndState',
+		value: function _addEndState(func) {
+			this.onEnd.push(func);
+		}
+	}, {
+		key: '_initAttrs',
+		value: function _initAttrs(attrs) {
+			for (var key in this.converter) {
+				if (this.attrs[key] === undefined) {
+					this.target.attrs[key] === undefined ? this.attrs[key] = 1 : this.attrs[key] = this.target.attrs[key];
+				}
+			}
+		}
+	}, {
+		key: '_getLastItem',
+		value: function _getLastItem(arr) {
+			var maxTime = void 0,
+			    lastItem = void 0;
+			arr.map(function (item) {
+				var duration = item.duration;
+				if (maxTime) {
+					if (duration >= maxTime) {
+						maxTime = duration;
+						lastItem = item;
+					}
+				} else {
+					maxTime = duration;
+					lastItem = item;
+				}
+			});
+			return lastItem;
+		}
+	}, {
+		key: '_updateAttrs',
+		value: function _updateAttrs() {
+			this.attrs = Object.assign({}, this.target.attrs, this.initOpt);
+			this._initAttrs();
+		}
+	}, {
+		key: '_updateTimeline',
+		value: function _updateTimeline() {
+			this._updateAttrs();
+			this.rekapi.removeActor(this.actor);
+			this.actor.removeAllKeyframes();
+
+			this.actor.importTimeline(this._addTimeline(this.converter));
+			this.pathTimeline && this.actor.importTimeline(this.pathTimeline);
+			this.specialTimeline && this.actor.importTimeline(this.specialTimeline);
+			this.rekapi.addActor(this.actor);
+		}
+	}, {
+		key: '_updatePlayQueue',
+		value: function _updatePlayQueue() {
+			var _this2 = this;
+
+			var reverse = this.queue.concat().reverse();
+			reverse.map(function (item, key) {
+				// 当最后一组动画的duration最长的动画执行完毕后，将状态置位end
+				if (key === 0) {
+					var lastItem = _this2._getLastItem(item);
+					lastItem._addEndState(function () {
+						_this2.state = 'end';
+					});
+				}
+				if (reverse[key + 1]) {
+
+					// 解除上一个动画onStop事件的所有事件绑定
+					reverse[key + 1][0].rekapi.off('stop');
+					// 重新绑定
+					reverse[key + 1][0].rekapi.on('stop', function () {
+						reverse[key + 1][0].onStop.map(function (func) {
+							return func.call(_this2);
+						});
+					});
+					// 关联前后两个动画
+					reverse[key + 1][0].rekapi.on('stop', function () {
+						reverse[key].map(function (rekanva) {
+							rekanva._updateTimeline();
+							rekanva.rekapi.play(1);
+						});
+					});
+				}
+			});
+		}
+	}, {
+		key: '_getInitState',
+		value: function _getInitState(attrs, converter) {
+			var state = {};
+			for (var key in converter) {
+				state[key] = attrs[key];
+			}
+			return state;
+		}
+	}, {
+		key: '_getEndState',
+		value: function _getEndState(attrs, converter) {
+			var state = {};
+			for (var key in converter) {
+				switch (key) {
+					case 'scaleX':
+					case 'scaleY':
+					case 'width':
+					case 'height':
+					case 'clipX':
+					case 'clipY':
+					case 'clipHeight':
+					case 'clipWidth':
+					case 'opacity':
+					case 'x2':
+					case 'y2':
+						var newKey = key === 'x2' ? 'x' : key === 'y2' ? 'y' : key;
+						state[newKey] = converter[newKey];
+						break;
+
+					default:
+						state[key] = converter[key] + attrs[key];
+						break;
+				}
+			}
+			return state;
+		}
+
+		// 获取两条timeline，当timeline有重复定义的track定义时，将相同的track合并到nextTimeline上，并删除lastTimeline的同名track
+
+	}, {
+		key: '_combineTimeline',
+		value: function _combineTimeline(lastTimeline, nextTimeline) {
+			var _this3 = this;
+
+			var lastTrackNames = lastTimeline.trackNames;
+			var nextTrackNames = nextTimeline.trackNames;
+			lastTrackNames.map(function (name) {
+				var key = name.split('&')[0];
+				var index = nextTrackNames.indexOf(key);
+				if (index !== -1) {
+					nextTimeline.trackNames.splice(index, 1, key + '&' + _this3.id);
+					var propertyTrack = nextTimeline.propertyTracks[key];
+					delete nextTimeline.propertyTracks[key];
+					nextTimeline.propertyTracks[key + '&' + _this3.id] = propertyTrack;
+					nextTimeline.propertyTracks[key + '&' + _this3.id].map(function (item) {
+						item.name = key + '&' + _this3.id;
+					});
+				}
+			});
+			return { lastTimeline: lastTimeline, nextTimeline: nextTimeline };
+		}
+	}]);
+
+	return Rekanva;
+}();
+
+function Path(path) {
+	var pathElement = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+	pathElement.setAttributeNS(null, 'd', path);
+
+	return function (duration) {
+		var length = parseInt(pathElement.getTotalLength());
+		var count = duration / 1000 * 60; // 帧数
+		var step = length / count; // 步长
+		var actor = new _rekapi.Actor();
+		var curLength = 0; // 当前长度
+
+		// 如果能从path中拿到所有的路径坐标，而不是在遍历中一个一个地getPointAtLength，
+		// 那么这边的计算速度会大大提升
+		// getPointSetFromPath(path)
+
+		for (var time = 0; time <= count; time++) {
+			var x = parseInt(pathElement.getPointAtLength(curLength).x);
+			var y = parseInt(pathElement.getPointAtLength(curLength).y);
+			actor.keyframe(time * (1000 / 60), { x: x, y: y });
+			curLength += step;
+		}
+		return actor.exportTimeline();
+	};
+}
+
+Rekanva._extends = function (name, func) {
+	this.prototype[name] = func;
+};
+
+var extendsList = { update: _update2.default, add: _add2.default, delete: _delete2.default, play: _play2.default, stop: _stop2.default, reset: _reset2.default, end: _end2.default, combine: _combine2.default, to: _to3.default };
+
+for (var name in extendsList) {
+	Rekanva._extends(name, extendsList[name]);
+}
+// Rekanva._extends('update', update);
+// Rekanva._extends('add', add);
+// Rekanva._extends('delete', deleteFunc);
+// Rekanva._extends('play', play);
+// Rekanva._extends('stop', stop);
+// Rekanva._extends('reset', reset);
+// Rekanva._extends('end', end);
+// Rekanva._extends('combine', combine);
+// Rekanva._extends('to', to);
+
+/***/ }),
+/* 3 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -11451,31 +11481,6 @@ var _converter = {
 exports.default = _converter;
 
 /***/ }),
-/* 3 */
-/***/ (function(module, exports, __webpack_require__) {
-
-"use strict";
-
-
-Object.defineProperty(exports, "__esModule", {
-	value: true
-});
-function update(data) {
-	var converter = Object.assign({}, this.converter, data);
-	this.attrs = Object.assign({}, this.target.attrs, this.initOpt);
-	this._initAttrs();
-	this.rekapi.removeActor(this.actor);
-	this.actor.removeAllKeyframes();
-
-	this.actor.importTimeline(this._addTimeline(converter));
-	this.pathTimeline && this.actor.importTimeline(this.pathTimeline);
-	this.specialTimeline && this.actor.importTimeline(this.specialTimeline);
-	this.rekapi.addActor(this.actor);
-}
-
-exports.default = update;
-
-/***/ }),
 /* 4 */
 /***/ (function(module, exports, __webpack_require__) {
 
@@ -11490,11 +11495,11 @@ function add() {
 	var len = argu.length;
 	if (len === 1) {
 		var rekanva = argu[0];
-		rekanva instanceof Rekanva && this.queue.push([rekanva]);
+		rekanva instanceof this.constructor && this.queue.push([rekanva]);
 	} else {
 		var index = typeof argu[0] === 'number' ? argu[0] : this.queue.length;
 		var _rekanva = argu[1];
-		_rekanva instanceof Rekanva && this.queue.splice(index, 0, _rekanva);
+		_rekanva instanceof this.constructor && this.queue.splice(index, 0, _rekanva);
 	}
 }
 
@@ -11530,12 +11535,22 @@ Object.defineProperty(exports, "__esModule", {
 	value: true
 });
 exports.default = play;
+
+var _update = __webpack_require__(1);
+
+var _update2 = _interopRequireDefault(_update);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
 function play() {
 	this.state = 'playing';
-	this._updateAttrs();
+	// this._updateAttrs();
+	// update.call(this);
+	HAO.log(this.queue);
 	this._updatePlayQueue();
 	this.queue[0].map(function (rekanva) {
-		return rekanva.rekapi.play(1);
+		rekanva._updateTimeline();
+		rekanva.rekapi.play(1);
 	});
 }
 
@@ -11573,8 +11588,10 @@ function stop() {
 						});
 					});
 					_this.queue[key1 + 1] && rekapi.on('stop', function () {
+
 						_this.queue[key1 + 1].map(function (nextRekanva) {
-							return nextRekanva.rekapi.play(1);
+							nextRekanva._updateTimeline();
+							nextRekanva.rekapi.play(1);
 						});
 					});
 				} else {
@@ -11623,13 +11640,13 @@ function reset() {
 
 							_this.queue[key1 + 1] && rekapi.on('stop', function () {
 								_this.queue[key1 + 1].map(function (nextRekanva) {
-									return nextRekanva.rekapi.play(1);
+									nextRekanva._updateTimeline();
+									nextRekanva.rekapi.play(1);
 								});
 							});
 							// 更新target到reset状态
 							_this._to(rekanva.target, Object.assign({}, _this._getInitState(rekanva.attrs, rekanva.converter)));
 							// 触发target的onReset事件
-							// rekanva.onReset.map(func => func.call(this));
 							resetQueue.unshift(function () {
 								rekanva.onReset.map(function (func) {
 									return func.call(_this);
@@ -11644,7 +11661,6 @@ function reset() {
 								});
 							});
 							_this._to(rekanva.target, Object.assign({}, _this._getInitState(rekanva.attrs, rekanva.converter)));
-							// rekanva.onReset.map(func => func.call(this));
 							resetQueue.unshift(function () {
 								rekanva.onReset.map(function (func) {
 									return func.call(_this);
@@ -11653,7 +11669,6 @@ function reset() {
 						}
 					} else if (index === undefined || key1 <= index) {
 						_this._to(rekanva.target, Object.assign({}, _this._getInitState(rekanva.attrs, rekanva.converter)));
-						// rekanva.onReset.map(func => func.call(this));
 						resetQueue.unshift(function () {
 							rekanva.onReset.map(function (func) {
 								return func.call(_this);
@@ -11674,7 +11689,6 @@ function reset() {
 			this.queue.map(function (item) {
 				item.map(function (rekanva) {
 					_this._to(rekanva.target, Object.assign({}, _this._getInitState(rekanva.attrs, rekanva.converter)));
-					// rekanva.onReset.map(func => func.call(this));
 					resetQueue.unshift(function () {
 						rekanva.onReset.map(function (func) {
 							return func.call(_this);
@@ -11728,7 +11742,8 @@ function end() {
 							});
 							_this.queue[key1 + 1] && rekapi.on('stop', function () {
 								_this.queue[key1 + 1].map(function (nextRekanva) {
-									return nextRekanva.rekapi.play(1);
+									nextRekanva._updateTimeline();
+									nextRekanva.rekapi.play(1);
 								});
 							});
 							// 更新target到end状态
@@ -11800,23 +11815,23 @@ Object.defineProperty(exports, "__esModule", {
 });
 exports.default = combine;
 
-function _objectWithoutProperties(obj, keys) { var target = {}; for (var i in obj) { if (keys.indexOf(i) >= 0) continue; if (!Object.prototype.hasOwnProperty.call(obj, i)) continue; target[i] = obj[i]; } return target; }
+var _rekapi = __webpack_require__(0);
 
-/**
- * combine 结合上一个动画
- * @param { object } options 动画配置
- * @param { object } options.target 动画元素, 默认为上一个动画元素
- * @param { number } options.duration 运动时间, 默认为1s
- * @param { string } options.easing 运动时间函数, 默认为上一个动画easing
- * @param { object } { ...options.props } 动画属性
- * @return { object } Rekanva实例
- *
- * 在结合同一个元素的两个动画时，要注意duration这个属性，当前后两个动画含有同名track(例如，两个动画都改变元素的x坐标)时，
- * duration应保持一致，否则我们无法对同名track进行合并处理
- */
+function _objectWithoutProperties(obj, keys) { var target = {}; for (var i in obj) { if (keys.indexOf(i) >= 0) continue; if (!Object.prototype.hasOwnProperty.call(obj, i)) continue; target[i] = obj[i]; } return target; } /**
+                                                                                                                                                                                                                              * combine 结合上一个动画
+                                                                                                                                                                                                                              * @param { object } options 动画配置
+                                                                                                                                                                                                                              * @param { object } options.target 动画元素, 默认为上一个动画元素
+                                                                                                                                                                                                                              * @param { number } options.duration 运动时间, 默认为1s
+                                                                                                                                                                                                                              * @param { string } options.easing 运动时间函数, 默认为上一个动画easing
+                                                                                                                                                                                                                              * @param { object } { ...options.props } 动画属性
+                                                                                                                                                                                                                              * @return { object } Rekanva实例
+                                                                                                                                                                                                                              *
+                                                                                                                                                                                                                              * 在结合同一个元素的两个动画时，要注意duration这个属性，当前后两个动画含有同名track(例如，两个动画都改变元素的x坐标)时，
+                                                                                                                                                                                                                              * duration应保持一致，否则我们无法对同名track进行合并处理
+                                                                                                                                                                                                                              */
+
+
 function combine(options) {
-	var _this = this;
-
 	var _options$target = options.target,
 	    target = _options$target === undefined ? this.target : _options$target,
 	    _options$duration = options.duration,
@@ -11828,60 +11843,62 @@ function combine(options) {
 	    onEnd = options.onEnd,
 	    onReset = options.onReset,
 	    onPause = options.onPause,
-	    props = _objectWithoutProperties(options, ["target", "duration", "easing", "onPlay", "onStop", "onEnd", "onReset", "onPause"]);
+	    props = _objectWithoutProperties(options, ['target', 'duration', 'easing', 'onPlay', 'onStop', 'onEnd', 'onReset', 'onPause']);
 
-	if (target === this.target) {
+	var lastRekanva = this.queue[this.queue.length - 1][0];
+	if (target === lastRekanva.target) {
 
 		// 增加自身的事件
-		this._isFunction(onStop) && this.onStop.push(onStop);
-		this._isFunction(onPlay) && this.onPlay.push(onPlay);
-		this._isFunction(onPause) && this.onPause.push(onPause);
-		this._isFunction(onEnd) && this.onEnd.push(onEnd);
-		this._isFunction(onReset) && this.onReset.onReset(onReset);
+		lastRekanva._isFunction(onStop) && lastRekanva.onStop.push(onStop);
+		lastRekanva._isFunction(onPlay) && lastRekanva.onPlay.push(onPlay);
+		lastRekanva._isFunction(onPause) && lastRekanva.onPause.push(onPause);
+		lastRekanva._isFunction(onEnd) && lastRekanva.onEnd.push(onEnd);
+		lastRekanva._isFunction(onReset) && lastRekanva.onReset.unshift(onReset);
 
-		this.id = this._getHash();
-		this.duration = duration;
-		this.easing = easing;
+		lastRekanva.id = lastRekanva._getHash();
+		lastRekanva.duration = duration;
+		lastRekanva.easing = easing;
 
 		var path = props.path,
 		    timeline = props.timeline,
-		    base = _objectWithoutProperties(props, ["path", "timeline"]);
+		    base = _objectWithoutProperties(props, ['path', 'timeline']);
 
-		this.converter = this._toConvert(base);
+		lastRekanva.converter = Object.assign({}, lastRekanva.converter, lastRekanva._toConvert(base));
 		if (path) {
-			this.pathTimeline = path(this.duration, this.attrs.x, this.attrs.y);
+			lastRekanva.pathTimeline = path(lastRekanva.duration, lastRekanva.attrs.x, lastRekanva.attrs.y);
 		} else {
-			this.pathTimeline = null;
+			lastRekanva.pathTimeline = null;
 		}
 		if (timeline) {
-			this.specialTimeline = this._addSpecialTimeline(timeline);
+			lastRekanva.specialTimeline = lastRekanva._addSpecialTimeline(timeline);
 		} else {
-			this.specialTimeline = null;
+			lastRekanva.specialTimeline = null;
 		}
 
-		this.rekapi.removeActor(this.actor);
+		lastRekanva.rekapi.removeActor(lastRekanva.actor);
 
 		var nextTimeline = function () {
-			var actor = new Actor();
-			actor.importTimeline(_this._addTimeline(_this.converter));
+			var actor = new _rekapi.Actor();
+			actor.importTimeline(lastRekanva._addTimeline(lastRekanva.converter));
 
-			_this.pathTimeline && actor.importTimeline(_this.pathTimeline);
-			_this.specialTimeline && actor.importTimeline(_this.specialTimeline);
+			lastRekanva.pathTimeline && actor.importTimeline(lastRekanva.pathTimeline);
+			lastRekanva.specialTimeline && actor.importTimeline(lastRekanva.specialTimeline);
 
 			return actor.exportTimeline();
 		}();
 
-		var lastTimeline = this.actor.exportTimeline();
-		var timelines = this._combineTimeline(lastTimeline, nextTimeline);
-		this.actor.removeAllKeyframes();
-		this.actor.importTimeline(timelines.lastTimeline);
-		this.actor.importTimeline(timelines.nextTimeline);
+		var lastTimeline = lastRekanva.actor.exportTimeline();
+		var timelines = lastRekanva._combineTimeline(lastTimeline, nextTimeline);
+		lastRekanva.actor.removeAllKeyframes();
+		lastRekanva.actor.importTimeline(timelines.lastTimeline);
+		lastRekanva.actor.importTimeline(timelines.nextTimeline);
 
-		this.rekapi.addActor(this.actor);
+		lastRekanva.rekapi.addActor(lastRekanva.actor);
 	} else {
-		var rekanva = new Rekanva(Object.assign({}, options, { target: target, duration: duration, easing: easing }));
+		var rekanva = new this.constructor(Object.assign({}, options, { target: target, duration: duration, easing: easing }));
 		this.queue[this.queue.length - 1].push(rekanva);
 	}
+
 	return this;
 }
 
@@ -11904,7 +11921,7 @@ function to(options) {
 	    _options$easing = options.easing,
 	    easing = _options$easing === undefined ? this.easing : _options$easing;
 
-	var rekanva = new Rekanva(Object.assign({}, options, { target: target, duration: duration, easing: easing }));
+	var rekanva = new this.constructor(Object.assign({}, options, { target: target, duration: duration, easing: easing }));
 	this.queue.push([rekanva]);
 	return this;
 }

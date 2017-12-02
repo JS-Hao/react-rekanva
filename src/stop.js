@@ -15,7 +15,12 @@ export default function stop() {
 						rekanva.onStop.map(func => func.call(this));
 					});
 					this.queue[key1 + 1] && rekapi.on('stop', () => {
-						this.queue[key1 + 1].map(nextRekanva => nextRekanva.rekapi.play(1));
+
+						this.queue[key1 + 1].map(nextRekanva => {
+							nextRekanva._updateTimeline();
+							nextRekanva.rekapi.play(1);
+						});
+
 					});
 				} else {
 					rekapi.stop();

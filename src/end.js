@@ -18,7 +18,10 @@ export default function end() {
 								rekanva.onStop.map(func => func.call(this));
 							});
 							this.queue[key1 + 1] && rekapi.on('stop', () => {
-								this.queue[key1 + 1].map(nextRekanva => nextRekanva.rekapi.play(1));
+								this.queue[key1 + 1].map(nextRekanva => {
+									nextRekanva._updateTimeline();
+									nextRekanva.rekapi.play(1);
+								});
 							});
 							// 更新target到end状态
 							// rekanva.target.to(Object.assign({}, this._getEndState(rekanva.attrs, rekanva.converter), { duration: -1 }));

@@ -1,14 +1,7 @@
 function update(data) {
-	const converter = Object.assign({}, this.converter, data);
-	this.attrs = Object.assign({}, this.target.attrs, this.initOpt);
-	this._initAttrs();
-	this.rekapi.removeActor(this.actor);
-	this.actor.removeAllKeyframes();
-
-	this.actor.importTimeline(this._addTimeline(converter));
-	this.pathTimeline && this.actor.importTimeline(this.pathTimeline);
-	this.specialTimeline && this.actor.importTimeline(this.specialTimeline);
-	this.rekapi.addActor(this.actor);
+	data = data || {};
+	this.converter = Object.assign({}, this.converter, data);
+	this._updateTimeline();
 }
 
 export default update;

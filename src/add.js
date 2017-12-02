@@ -3,11 +3,11 @@ function add() {
 	const len = argu.length;
 	if (len === 1) {
 		const rekanva = argu[0];
-		rekanva instanceof Rekanva && this.queue.push([rekanva]);
+		rekanva instanceof this.constructor && this.queue.push([rekanva]);
 	} else {
 		const index = (typeof argu[0] === 'number') ? argu[0] : this.queue.length;
 		const rekanva = argu[1];
-		rekanva instanceof Rekanva && this.queue.splice(index, 0, rekanva);
+		rekanva instanceof this.constructor && this.queue.splice(index, 0, rekanva);
 	}
 }
 
